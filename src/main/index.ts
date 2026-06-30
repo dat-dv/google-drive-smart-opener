@@ -30,6 +30,20 @@ let offlineSyncService: OfflineSyncService
 
 const fileQueue: string[] = []
 
+function logToFile(msg: string): void {
+  const line = `[${new Date().toISOString()}] ${msg}\n`
+  try {
+    const home = os.homedir()
+    const logDir = join(home, 'Library/Application Support/google-drive-smart-opener')
+    fs.mkdirSync(logDir, { recursive: true })
+    fs.appendFileSync(join(logDir, 'app-debug.log'), line)
+  } catch (e) {
+    // Ignore
+  }
+}
+
+logToFile('--- Application Main Process Started ---')
+
 class ElectronUserInteractor implements UserInteractor {
   private win: BrowserWindow | null = null
 
@@ -97,23 +111,33 @@ function getGoogleDriveRoot(): string {
 }
 
 function handleOpenFile(filePath: string): void {
+  logToFile(`handleOpenFile triggered for: ${filePath}`)
   if (!mainWindow) {
+    logToFile(`mainWindow not initialized, queueing file: ${filePath}`)
     fileQueue.push(filePath)
     return
   }
 
+  // Ensure window is focused/visible to user on file open (especially for prompts on DB misses)
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+
   openDocumentUseCase
     .execute(filePath)
     .then((result) => {
+      logToFile(`openDocumentUseCase.execute finished with result type: ${result.type}`)
       if (result.type === 'OPENED') {
-        console.log(`[Smart Opener] Opened document: ${result.document.drivePath}`)
+        logToFile(`[Smart Opener] Opened document: ${result.document.drivePath}`)
       } else if (result.type === 'CANCELLED') {
-        console.log(`[Smart Opener] Cancelled opening: ${filePath}`)
+        logToFile(`[Smart Opener] Cancelled opening: ${filePath}`)
       } else {
+        logToFile(`[Smart Opener] Result not handled: ${result.type}`)
         dialog.showErrorBox('Error', `File not found: ${result.localPath}`)
       }
     })
     .catch((err) => {
+      logToFile(`openDocumentUseCase.execute failed: ${err.message}`)
       dialog.showErrorBox('Error', `Failed to open document: ${err.message}`)
     })
 }
@@ -124,14 +148,17 @@ function handleOpenFile(filePath: string): void {
 let rendererReady = false
 app.on('open-file', (event, filePath) => {
   event.preventDefault()
+  logToFile(`macOS open-file event received: ${filePath}. rendererReady=${rendererReady}`)
   if (rendererReady) {
     handleOpenFile(filePath)
   } else {
     fileQueue.push(filePath)
+    logToFile(`Queued path. Current queue length: ${fileQueue.length}`)
   }
 })
 
 function createWindow(): void {
+  logToFile('createWindow called')
   mainWindow = new BrowserWindow({
     width: 900,
     height: 670,
@@ -147,15 +174,18 @@ function createWindow(): void {
   interactor.setWindow(mainWindow)
 
   mainWindow.on('ready-to-show', () => {
+    logToFile('mainWindow ready-to-show fired')
     mainWindow!.show()
   })
 
   // Flush file queue only after React has fully mounted and registered its IPC listeners.
   // 'renderer-ready' is sent from App.tsx useEffect to signal mount completion.
   ipcMain.once('renderer-ready', () => {
+    logToFile(`renderer-ready event received. Flushing file queue of length: ${fileQueue.length}`)
     rendererReady = true
     while (fileQueue.length > 0) {
       const file = fileQueue.shift()
+      logToFile(`Flushing queued file: ${file}`)
       if (file) handleOpenFile(file)
     }
   })
@@ -173,6 +203,7 @@ function createWindow(): void {
 }
 
 app.whenReady().then(async () => {
+  logToFile('app.whenReady fired')
   electronApp.setAppUserModelId('com.electron')
 
   app.on('browser-window-created', (_, window) => {
@@ -182,17 +213,22 @@ app.whenReady().then(async () => {
   // Parse process.argv for initial file to open (R7/Testing support)
   // Only queue — do NOT process yet, renderer may not be mounted
   const args = process.argv.slice(is.dev ? 2 : 1)
+  logToFile(`process.argv: ${JSON.stringify(process.argv)}, parsed args: ${JSON.stringify(args)}`)
   const fileArg = args.find((arg) => !arg.startsWith('-') && fs.existsSync(arg) && fs.statSync(arg).isFile())
   if (fileArg) {
+    logToFile(`Found file argument in argv: ${fileArg}. Queueing.`)
     fileQueue.push(fileArg)
   }
 
   // Initialize DB and repositories
   const dbPath = join(app.getPath('userData'), 'database.sqlite')
+  logToFile(`Connecting to database at path: ${dbPath}`)
   dbManager = new DatabaseManager(dbPath)
   try {
     dbManager.connect()
+    logToFile('Database connection successful')
   } catch (err) {
+    logToFile(`Database connection failed: ${err instanceof Error ? err.message : String(err)}`)
     dialog.showErrorBox(
       'Database Error',
       `Failed to connect to SQLite database:\n${err instanceof Error ? err.message : String(err)}\n\nPath: ${dbPath}`

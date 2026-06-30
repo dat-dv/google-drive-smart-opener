@@ -15,7 +15,7 @@ export class DriveWatcher {
   private readonly docRepo: DocumentRepository;
   private readonly mappingRepo: FolderMappingRepository;
   private readonly cloudProvider: CloudProvider;
-  private readonly watchers = new Map<string, chokidar.FSWatcher>();
+  private rootWatcher: chokidar.FSWatcher | null = null;
 
   constructor(
     docRepo: DocumentRepository,
@@ -28,46 +28,19 @@ export class DriveWatcher {
   }
 
   /**
-   * Initializes and starts watching all active folder mappings stored in the DB.
+   * Initializes and starts watching the entire Google Drive root directory.
    */
   public async start(): Promise<void> {
-    const mappings = await this.mappingRepo.list();
-    for (const mapping of mappings) {
-      await this.watchMapping(mapping);
-    }
-  }
-
-  /**
-   * Stops all active watchers.
-   */
-  public async stop(): Promise<void> {
-    for (const [mappingId, watcher] of this.watchers.entries()) {
-      await watcher.close();
-      this.watchers.delete(mappingId);
-    }
-  }
-
-  /**
-   * Dynamically starts watching a specific folder mapping path.
-   */
-  public async watchMapping(mapping: FolderMapping): Promise<void> {
-    if (this.watchers.has(mapping.id)) {
-      return; // Already watching
-    }
-
     const driveRoot = this.cloudProvider.getDriveRootPath();
-    const absolutePathToWatch = path.join(driveRoot, mapping.driveFolderPath);
-
-    if (!fs.existsSync(absolutePathToWatch)) {
-      // Create folder if missing
-      fs.mkdirSync(absolutePathToWatch, { recursive: true });
+    if (!fs.existsSync(driveRoot)) {
+      return;
     }
 
-    // Initialize Chokidar FSWatcher
-    const watcher = chokidar.watch(absolutePathToWatch, {
+    // Initialize Chokidar FSWatcher for the entire Google Drive root path
+    this.rootWatcher = chokidar.watch(driveRoot, {
       ignored: /(^|[\/\\])\../, // ignore dotfiles
       persistent: true,
-      ignoreInitial: true, // ignore files already present on startup (handled by initial sync)
+      ignoreInitial: true, // ignore files already present on startup
       awaitWriteFinish: {
         stabilityThreshold: 300,
         pollInterval: 100,
@@ -75,29 +48,36 @@ export class DriveWatcher {
     });
 
     // Wire events
-    watcher.on('add', (filePath) => this.handleFileAdded(filePath, mapping.id));
-    watcher.on('change', (filePath) => this.handleFileChanged(filePath));
-    watcher.on('unlink', (filePath) => this.handleFileDeleted(filePath));
-
-    this.watchers.set(mapping.id, watcher);
+    this.rootWatcher.on('add', (filePath) => this.handleFileAdded(filePath, null));
+    this.rootWatcher.on('change', (filePath) => this.handleFileChanged(filePath));
+    this.rootWatcher.on('unlink', (filePath) => this.handleFileDeleted(filePath));
   }
 
   /**
-   * Dynamically stops watching a specific folder mapping.
+   * Stops the active root watcher.
    */
-  public async unwatchMapping(mappingId: string): Promise<void> {
-    const watcher = this.watchers.get(mappingId);
-    if (watcher) {
-      await watcher.close();
-      this.watchers.delete(mappingId);
+  public async stop(): Promise<void> {
+    if (this.rootWatcher) {
+      await this.rootWatcher.close();
+      this.rootWatcher = null;
     }
   }
+
+  /**
+   * Deprecated / Kept for backwards compatibility
+   */
+  public async watchMapping(_mapping: FolderMapping): Promise<void> {}
+
+  /**
+   * Deprecated / Kept for backwards compatibility
+   */
+  public async unwatchMapping(_mappingId: string): Promise<void> {}
 
   /**
    * Handles file creation events on Drive.
    * Resolves renames/moves by checking if the hash already exists on a deleted document (R5).
    */
-  private async handleFileAdded(absoluteFilePath: string, mappingId: string): Promise<void> {
+  private async handleFileAdded(absoluteFilePath: string, mappingId: string | null): Promise<void> {
     try {
       const driveRoot = this.cloudProvider.getDriveRootPath();
       const relativeDrivePath = path.relative(driveRoot, absoluteFilePath);

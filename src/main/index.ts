@@ -218,6 +218,24 @@ function createWindow(): void {
   }
 }
 
+async function initializeGoogleDriveServices(driveRoot: string): Promise<void> {
+  logToFile(`Initializing Google Drive services with root: ${driveRoot}`)
+  if (watcher) {
+    try {
+      await watcher.stop()
+    } catch (e) {
+      logToFile(`Error stopping old watcher: ${e}`)
+    }
+  }
+
+  driveProvider = new GoogleDriveProvider(driveRoot)
+  openDocumentUseCase = new OpenDocumentUseCase(docRepo, driveProvider, interactor, taskRepo)
+  offlineSyncService = new OfflineSyncService(taskRepo, docRepo, driveProvider)
+
+  watcher = new DriveWatcher(docRepo, mappingRepo, driveProvider)
+  await watcher.start()
+}
+
 app.whenReady().then(async () => {
   logToFile('app.whenReady fired')
   electronApp.setAppUserModelId('com.electron')
@@ -258,17 +276,14 @@ app.whenReady().then(async () => {
   docRepo = new SQLiteDocumentRepository(() => dbManager.getDatabase())
   mappingRepo = new SQLiteFolderMappingRepository(() => dbManager.getDatabase())
   taskRepo = new SQLiteOfflineTaskRepository(() => dbManager.getDatabase())
-
-  const driveRoot = getGoogleDriveRoot()
-  driveProvider = new GoogleDriveProvider(driveRoot)
   interactor = new ElectronUserInteractor()
 
-  openDocumentUseCase = new OpenDocumentUseCase(docRepo, driveProvider, interactor, taskRepo)
-  offlineSyncService = new OfflineSyncService(taskRepo, docRepo, driveProvider)
+  // Load drive root from DB settings
+  const db = dbManager.getDatabase()
+  const row = db.prepare("SELECT value FROM meta WHERE key = 'google_drive_root'").get() as { value: string } | undefined
+  const driveRoot = row ? row.value : getGoogleDriveRoot()
 
-  // Start Realtime Drive Watcher (M5)
-  watcher = new DriveWatcher(docRepo, mappingRepo, driveProvider)
-  await watcher.start()
+  await initializeGoogleDriveServices(driveRoot)
 
   // Register network status event listener
   ipcMain.on('network-status:changed', async (_, online: boolean) => {
@@ -306,6 +321,29 @@ app.whenReady().then(async () => {
       return true
     }
     return false
+  })
+
+  // Register Settings IPC Handlers
+  ipcMain.handle('settings:get-drive-root', async () => {
+    const db = dbManager.getDatabase()
+    const row = db.prepare("SELECT value FROM meta WHERE key = 'google_drive_root'").get() as { value: string } | undefined
+    return {
+      path: row ? row.value : getGoogleDriveRoot(),
+      isConfigured: !!row
+    }
+  })
+
+  ipcMain.handle('settings:set-drive-root', async (_, path) => {
+    logToFile(`settings:set-drive-root called with: ${path}`)
+    if (!path || !fs.existsSync(path)) {
+      throw new Error('Invalid or non-existent path')
+    }
+    const db = dbManager.getDatabase()
+    db.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('google_drive_root', ?)").run(path)
+
+    // Re-initialize services with the new root
+    await initializeGoogleDriveServices(path)
+    return true
   })
 
   ipcMain.handle('dialog:select-folder', async () => {

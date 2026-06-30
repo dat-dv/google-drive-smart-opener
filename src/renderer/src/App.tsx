@@ -362,16 +362,6 @@ function App(): React.JSX.Element {
       {/* Tabs Menu */}
       <div className="flex border-b border-white/5 gap-2">
         <button
-          onClick={(): void => setActiveTab('mappings')}
-          className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all ${
-            activeTab === 'mappings'
-              ? 'border-indigo-500 text-white'
-              : 'border-transparent text-slate-400 hover:text-white'
-          }`}
-        >
-          Folder Mappings ({mappings.length})
-        </button>
-        <button
           onClick={(): void => setActiveTab('documents')}
           className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all ${
             activeTab === 'documents'
@@ -400,59 +390,6 @@ function App(): React.JSX.Element {
 
       {/* Main Content Areas */}
       <main className="flex flex-col gap-4">
-        {activeTab === 'mappings' && (
-          <div className="flex flex-col gap-4">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400">
-              Active Folder Mappings
-            </h2>
-            {mappings.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 px-4 rounded-2xl border border-dashed border-white/5 bg-slate-900/10 text-center gap-4">
-                <div className="text-4xl">📁</div>
-                <p className="text-sm text-slate-500 max-w-xs">
-                  No active mappings found. Click "Add Mapping" to establish a connection folder.
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-4">
-                {mappings.map((mapping) => (
-                  <div
-                    key={mapping.id}
-                    className="flex items-center justify-between p-5 rounded-2xl border border-white/5 bg-slate-900/25 hover:bg-slate-900/40 hover:border-indigo-500/20 transition-all duration-300 group"
-                  >
-                    <div className="flex items-center gap-6 flex-1 min-w-0">
-                      <div className="flex flex-col gap-1 min-w-0 flex-1">
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                          Local Workspace Path
-                        </span>
-                        <span className="text-sm text-slate-300 truncate font-mono bg-slate-950/20 px-2.5 py-1 rounded-lg border border-white/5">
-                          {mapping.localFolderPath}
-                        </span>
-                      </div>
-                      <div className="text-indigo-400 font-bold self-center pt-4">➔</div>
-                      <div className="flex flex-col gap-1 min-w-0 flex-1">
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                          Google Drive Mirror Path
-                        </span>
-                        <span className="text-sm text-slate-300 truncate font-mono bg-slate-950/20 px-2.5 py-1 rounded-lg border border-white/5">
-                          {mapping.driveFolderPath}
-                        </span>
-                      </div>
-                    </div>
-                    <button
-                      className="p-2 ml-4 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200 opacity-60 group-hover:opacity-100"
-                      title="Remove mapping"
-                      onClick={(): Promise<void> => handleDeleteMapping(mapping.id)}
-                    >
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
 
         {activeTab === 'documents' && (
           <div className="flex flex-col gap-4">

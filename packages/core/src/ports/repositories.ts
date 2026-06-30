@@ -1,4 +1,4 @@
-import { Document, FolderMapping } from '@shared/types';
+import { Document, FolderMapping, OfflineTask } from '@shared/types';
 
 /**
  * Port interface for Document data access operations.
@@ -92,4 +92,29 @@ export interface FolderMappingRepository {
    * Lists all folder mappings.
    */
   list(): Promise<FolderMapping[]>;
+}
+
+/**
+ * Port interface for OfflineTask data access operations.
+ */
+export interface OfflineTaskRepository {
+  /**
+   * Persists a new offline task.
+   */
+  create(task: OfflineTask): Promise<void>;
+
+  /**
+   * Updates an offline task.
+   */
+  update(task: OfflineTask): Promise<void>;
+
+  /**
+   * Deletes an offline task.
+   */
+  delete(id: string): Promise<void>;
+
+  /**
+   * Lists all offline tasks with PENDING status.
+   */
+  listPending(): Promise<OfflineTask[]>;
 }

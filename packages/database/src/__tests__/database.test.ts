@@ -24,7 +24,7 @@ describe('SQLite Database Layer Integration Tests', () => {
       const versionRow = db.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get() as { value: string };
 
       expect(versionRow).toBeDefined();
-      expect(versionRow.value).toBe('1'); // Matches migration version 1
+      expect(versionRow.value).toBe('2'); // Matches migration version 2
     });
   });
 

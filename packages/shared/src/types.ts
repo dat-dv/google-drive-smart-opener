@@ -50,3 +50,14 @@ export interface FolderMapping {
   createdAt: string;
   updatedAt: string;
 }
+
+/**
+ * OfflineTask represents a cloud synchronization operation cached offline.
+ */
+export interface OfflineTask {
+  id: string;
+  type: 'IMPORT_FILE' | 'SYNC_STATUS';
+  payload: string; // JSON string payload
+  createdAt: string;
+  status: 'PENDING' | 'COMPLETED' | 'FAILED';
+}

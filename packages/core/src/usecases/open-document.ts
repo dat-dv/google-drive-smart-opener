@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { Document, calculateFileMd5 } from '@shared';
-import { DocumentRepository } from '../ports/repositories';
+import { DocumentRepository, OfflineTaskRepository } from '../ports/repositories';
 import { CloudProvider } from '../ports/cloud-provider';
 import { UserInteractor } from '../ports/user-interactor';
 
@@ -23,15 +23,26 @@ export class OpenDocumentUseCase {
   private readonly docRepo: DocumentRepository;
   private readonly cloudProvider: CloudProvider;
   private readonly interactor: UserInteractor;
+  private readonly taskRepo?: OfflineTaskRepository;
+  private isOnline = true;
 
   constructor(
     docRepo: DocumentRepository,
     cloudProvider: CloudProvider,
-    interactor: UserInteractor
+    interactor: UserInteractor,
+    taskRepo?: OfflineTaskRepository
   ) {
     this.docRepo = docRepo;
     this.cloudProvider = cloudProvider;
     this.interactor = interactor;
+    this.taskRepo = taskRepo;
+  }
+
+  /**
+   * Sets the online status dynamically.
+   */
+  public setOnlineStatus(online: boolean): void {
+    this.isOnline = online;
   }
 
   /**
@@ -95,6 +106,49 @@ export class OpenDocumentUseCase {
     const stats = fs.statSync(resolvedLocalPath);
     const localHash = await calculateFileMd5(resolvedLocalPath);
     const filename = path.basename(resolvedLocalPath);
+
+    // Offline Handling for Database Misses
+    if (!this.isOnline) {
+      const placeholderDoc: Document = {
+        id: crypto.randomUUID(),
+        drivePath: `My Drive/Other/${filename}`,
+        localOriginalPath: resolvedLocalPath,
+        driveHash: null,
+        localHash: localHash,
+        driveModifiedTime: null,
+        localModifiedTime: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        lastOpened: new Date().toISOString(),
+        status: 'UNLINKED',
+        metadata: {
+          size: stats.size,
+          mimeType: filename.endsWith('.docx') ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' : 'text/plain',
+          provider: 'google-drive',
+          offlinePending: true
+        },
+        folderMappingId: null
+      };
+
+      await this.docRepo.create(placeholderDoc);
+      await this.cloudProvider.openFile(resolvedLocalPath);
+
+      if (this.taskRepo) {
+        await this.taskRepo.create({
+          id: crypto.randomUUID(),
+          type: 'IMPORT_FILE',
+          payload: JSON.stringify({
+            localFilePath: resolvedLocalPath,
+            targetDriveFolder: 'My Drive/Other',
+            documentId: placeholderDoc.id
+          }),
+          createdAt: new Date().toISOString(),
+          status: 'PENDING'
+        });
+      }
+
+      return { type: 'OPENED', document: placeholderDoc };
+    }
 
     // Search Drive candidates by filename
     const driveCandidates = await this.cloudProvider.search({ filename });

@@ -61,6 +61,18 @@ const buildDocTree = (docs: Document[]): TreeNode => {
   return root
 }
 
+/**
+ * Resolves the absolute local system path for a Google Drive file mirror,
+ * accounting for OS-specific path separators to avoid malformed URI errors.
+ */
+const resolveRemoteMirrorPath = (driveRoot: string, drivePath: string): string => {
+  const isWindows = driveRoot.includes('\\') || (!driveRoot.includes('/') && driveRoot.includes(':'))
+  const separator = isWindows ? '\\' : '/'
+  const cleanRoot = driveRoot.endsWith('/') || driveRoot.endsWith('\\') ? driveRoot.slice(0, -1) : driveRoot
+  const cleanPath = drivePath.startsWith('/') || drivePath.startsWith('\\') ? drivePath.slice(1) : drivePath
+  return `${cleanRoot}${separator}${cleanPath}`
+}
+
 function App(): React.JSX.Element {
   const [activeTab, setActiveTab] = useState<'documents' | 'conflicts'>('documents')
   const [conflicts, setConflicts] = useState<Document[]>([])
@@ -193,6 +205,7 @@ function App(): React.JSX.Element {
               </div>
             ) : (
               <div className="flex items-center gap-2 shrink-0 pl-5">
+                {/* Local Folder Button */}
                 {node.document?.localOriginalPath && (
                   <button
                     onClick={(e): void => {
@@ -202,8 +215,8 @@ function App(): React.JSX.Element {
                         node.document!.localOriginalPath
                       )
                     }}
-                    className="p-1 rounded hover:bg-slate-700/50 text-slate-400 hover:text-amber-400 transition-all duration-150 shrink-0"
-                    title="Open containing folder"
+                    className="p-1 rounded hover:bg-slate-700/50 text-slate-400 hover:text-emerald-400 transition-all duration-150 shrink-0"
+                    title="Open containing folder of local file"
                   >
                     <svg
                       className="w-3.5 h-3.5"
@@ -216,6 +229,36 @@ function App(): React.JSX.Element {
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+                      />
+                    </svg>
+                  </button>
+                )}
+
+                {/* Drive Mirror Folder Button */}
+                {node.document?.drivePath && driveRootInfo?.path && (
+                  <button
+                    onClick={(e): void => {
+                      e.stopPropagation()
+                      const remotePath = resolveRemoteMirrorPath(
+                        driveRootInfo.path,
+                        node.document!.drivePath
+                      )
+                      window.electron.ipcRenderer.invoke('dialog:show-in-folder', remotePath)
+                    }}
+                    className="p-1 rounded hover:bg-slate-700/50 text-slate-400 hover:text-indigo-400 transition-all duration-150 shrink-0"
+                    title="Open containing folder of Google Drive mirror"
+                  >
+                    <svg
+                      className="w-3.5 h-3.5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"
                       />
                     </svg>
                   </button>

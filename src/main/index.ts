@@ -192,6 +192,43 @@ app.whenReady().then(async () => {
   watcher = new DriveWatcher(docRepo, mappingRepo, driveProvider)
   await watcher.start()
 
+  // Register Mapping Service IPC Handlers (M8)
+  ipcMain.handle('mappings:list', async () => {
+    return mappingRepo.list()
+  })
+
+  ipcMain.handle('mappings:create', async (_, localFolderPath, driveFolderPath) => {
+    const mapping = {
+      id: crypto.randomUUID(),
+      localFolderPath,
+      driveFolderPath,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      status: 'ACTIVE' as const
+    }
+    await mappingRepo.create(mapping)
+    await watcher.watchMapping(mapping)
+    return mapping
+  })
+
+  ipcMain.handle('mappings:delete', async (_, id) => {
+    const mapping = await mappingRepo.findById(id)
+    if (mapping) {
+      await watcher.unwatchMapping(mapping.id)
+      await mappingRepo.delete(id)
+      return true
+    }
+    return false
+  })
+
+  ipcMain.handle('dialog:select-folder', async () => {
+    if (!mainWindow) return null
+    const result = dialog.showOpenDialogSync(mainWindow, {
+      properties: ['openDirectory', 'createDirectory']
+    })
+    return result ? result[0] : null
+  })
+
   createWindow()
 
   app.on('activate', function () {

@@ -177,6 +177,13 @@ app.whenReady().then(async () => {
     optimizer.watchWindowShortcuts(window)
   })
 
+  // Parse process.argv for initial file to open (R7/Testing support)
+  const args = process.argv.slice(is.dev ? 2 : 1)
+  const fileArg = args.find((arg) => !arg.startsWith('-') && fs.existsSync(arg) && fs.statSync(arg).isFile())
+  if (fileArg) {
+    fileToOpenOnStartup = fileArg
+  }
+
   // Initialize DB and repositories
   const dbPath = join(app.getPath('userData'), 'database.sqlite')
   dbManager = new DatabaseManager(dbPath)

@@ -172,6 +172,10 @@ function handleOpenFile(filePath: string): void {
   mainWindow.show()
   mainWindow.focus()
 
+  // P1.3: Notify renderer to show loading overlay
+  const filename = basename(filePath)
+  mainWindow.webContents.send('file-processing-start', filename)
+
   openDocumentUseCase
     .execute(filePath)
     .then((result) => {
@@ -195,7 +199,14 @@ function handleOpenFile(filePath: string): void {
         mainWindow.webContents.send('show-setup-modal')
       }
     })
+    .finally(() => {
+      // P1.3: Hide loading overlay regardless of outcome
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('file-processing-done')
+      }
+    })
 }
+
 
 // Early registration of macOS open-file event (R7)
 // Always queue regardless of app.isReady() — actual processing happens only after

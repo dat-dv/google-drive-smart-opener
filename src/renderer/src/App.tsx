@@ -1,20 +1,5 @@
 import React, { useState, useEffect } from 'react'
-
-interface Document {
-  id: string
-  drivePath: string
-  localOriginalPath: string | null
-  driveHash: string | null
-  localHash: string | null
-  status: string
-  lastOpened: string | null
-  metadata: {
-    size?: number
-    mimeType?: string
-    provider?: string
-    offlinePending?: boolean
-  }
-}
+import type { Document } from '@shared/types'
 
 interface TreeNode {
   name: string
@@ -79,6 +64,9 @@ function App(): React.JSX.Element {
   const [allDocs, setAllDocs] = useState<Document[]>([])
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [expandedPaths, setExpandedPaths] = useState<Record<string, boolean>>({ 'My Drive': true })
+  // P1.3: Loading state while main process is handling a file open
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [processingFile, setProcessingFile] = useState<string | null>(null)
 
   // Google Drive Root Configuration settings states
   const [driveRootInfo, setDriveRootInfo] = useState<{
@@ -440,6 +428,20 @@ function App(): React.JSX.Element {
       setShowSetupModal(true)
     })
 
+    // P1.3: Loading overlay — listen for file processing lifecycle events
+    const unsubProcessingStart = window.electron.ipcRenderer.on(
+      'file-processing-start',
+      (_, filename: string) => {
+        setIsProcessing(true)
+        setProcessingFile(filename)
+      }
+    )
+
+    const unsubProcessingDone = window.electron.ipcRenderer.on('file-processing-done', () => {
+      setIsProcessing(false)
+      setProcessingFile(null)
+    })
+
     // Signal to main process that React has fully mounted and all IPC listeners are active.
     // Main process waits for this before flushing the startup file queue.
     window.electron.ipcRenderer.send('renderer-ready')
@@ -451,6 +453,8 @@ function App(): React.JSX.Element {
       if (typeof unsubMultiple === 'function') unsubMultiple()
       if (typeof unsubConflict === 'function') unsubConflict()
       if (typeof unsubShowSetup === 'function') unsubShowSetup()
+      if (typeof unsubProcessingStart === 'function') unsubProcessingStart()
+      if (typeof unsubProcessingDone === 'function') unsubProcessingDone()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -566,7 +570,31 @@ function App(): React.JSX.Element {
 
   return (
     <div className="max-w-5xl w-full mx-auto p-6 flex flex-col gap-8 min-h-screen">
+      {/* P1.3: File processing overlay */}
+      {isProcessing && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-md">
+          <div className="flex flex-col items-center gap-5 p-8 rounded-2xl border border-white/10 bg-slate-900/70 shadow-2xl max-w-sm w-full mx-4">
+            <div className="relative w-14 h-14">
+              <div className="absolute inset-0 rounded-full border-4 border-indigo-500/20" />
+              <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-indigo-400 animate-spin" />
+              <div className="absolute inset-2 rounded-full bg-indigo-500/10 flex items-center justify-center">
+                <svg className="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+                </svg>
+              </div>
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-semibold text-white">Uploading to Google Drive...</p>
+              {processingFile && (
+                <p className="text-xs text-slate-400 mt-1 font-mono truncate max-w-xs">{processingFile}</p>
+              )}
+              <p className="text-[11px] text-slate-500 mt-2">Waiting for Drive sync before opening online</p>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Header */}
+
       <header className="flex items-center justify-between p-5 rounded-2xl border border-white/5 bg-slate-900/40 backdrop-blur-xl shadow-2xl">
         <div className="flex items-center gap-4">
           <div className="p-2.5 bg-indigo-500/10 rounded-xl border border-indigo-500/20 shadow-[0_0_15px_rgba(99,102,241,0.15)]">

@@ -1,5 +1,7 @@
 # Google Drive Smart Opener
 
+> 💡 Đây là dự án cá nhân được viết hoàn toàn bằng AI để tự động hóa công việc riêng của tác giả.
+
 Ứng dụng macOS giúp tự động đẩy các file Office cục bộ (`.xlsx`, `.docx`, `.pptx`) vào Google Drive để mở trực tuyến trên trình duyệt (Google Sheets, Docs, Slides), giải quyết vấn đề thiếu ứng dụng đọc file Microsoft Office trên máy Mac.
 
 ---

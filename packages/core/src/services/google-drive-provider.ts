@@ -119,8 +119,8 @@ export class GoogleDriveProvider implements CloudProvider {
   /**
    * Opens the file on macOS.
    * When useDriveApp is true, attempts to open via Google Drive desktop app first.
-   * Falls back to the OS default app association if Drive app returns an error
-   * (Drive daemon does not support opening arbitrary file paths on all versions).
+   * Retries xattr read for up to 10 seconds to handle Drive sync delay after import.
+   * Falls back to OS default app if Drive daemon does not provide item-id in time.
    */
   public async openFile(drivePath: string, useDriveApp = false): Promise<void> {
     const absolutePath = path.isAbsolute(drivePath) ? drivePath : this.resolveLocalPath(drivePath)
@@ -135,21 +135,35 @@ export class GoogleDriveProvider implements CloudProvider {
       })
 
     if (useDriveApp) {
-      try {
-        // Read Google Drive Item ID from macOS Extended Attributes (xattr)
-        const itemId = await execCmd(`xattr -p com.google.drivefs.item-id#S "${absolutePath}"`)
-        if (itemId) {
-          const driveUrl = `https://docs.google.com/open?id=${itemId}`
-          console.log(
-            `[GoogleDriveProvider] Found item ID ${itemId}. Opening in browser: ${driveUrl}`
-          )
-          await execCmd(`open "${driveUrl}"`)
-          return
+      // P2.2: Retry loop — Drive Desktop may not have written xattr yet after a fresh import.
+      // Poll up to 10 seconds (20 attempts × 500ms) before giving up and falling back.
+      const MAX_ATTEMPTS = 20
+      const POLL_INTERVAL_MS = 500
+
+      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        try {
+          const itemId = await execCmd(`xattr -p com.google.drivefs.item-id#S "${absolutePath}"`)
+          if (itemId) {
+            const driveUrl = `https://docs.google.com/open?id=${itemId}`
+            console.log(
+              `[GoogleDriveProvider] Found item ID ${itemId} on attempt ${attempt}. Opening: ${driveUrl}`
+            )
+            await execCmd(`open "${driveUrl}"`)
+            return
+          }
+        } catch {
+          // xattr not available yet — Drive hasn't synced this file yet
+          if (attempt < MAX_ATTEMPTS) {
+            console.log(
+              `[GoogleDriveProvider] xattr not ready (attempt ${attempt}/${MAX_ATTEMPTS}). Retrying in ${POLL_INTERVAL_MS}ms...`
+            )
+            await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS))
+          } else {
+            console.warn(
+              `[GoogleDriveProvider] xattr not available after ${MAX_ATTEMPTS} attempts. Falling back to default app.`
+            )
+          }
         }
-      } catch (err) {
-        console.warn(
-          `[GoogleDriveProvider] Failed to get Drive Item ID or open URL: ${err}. Falling back to default app.`
-        )
       }
     }
 
@@ -157,6 +171,7 @@ export class GoogleDriveProvider implements CloudProvider {
     console.log(`[GoogleDriveProvider] Falling back to default OS open: ${absolutePath}`)
     await execCmd(`open "${absolutePath}"`)
   }
+
 
   /**
    * Moves a file within the Google Drive filesystem.

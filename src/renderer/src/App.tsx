@@ -364,6 +364,10 @@ function App(): React.JSX.Element {
       }
     )
 
+    const unsubShowSetup = window.electron.ipcRenderer.on('show-setup-modal', () => {
+      setShowSetupModal(true)
+    })
+
     // Signal to main process that React has fully mounted and all IPC listeners are active.
     // Main process waits for this before flushing the startup file queue.
     window.electron.ipcRenderer.send('renderer-ready')
@@ -374,6 +378,7 @@ function App(): React.JSX.Element {
       if (typeof unsubSingle === 'function') unsubSingle()
       if (typeof unsubMultiple === 'function') unsubMultiple()
       if (typeof unsubConflict === 'function') unsubConflict()
+      if (typeof unsubShowSetup === 'function') unsubShowSetup()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

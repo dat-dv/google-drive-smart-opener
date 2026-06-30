@@ -22,6 +22,12 @@
       "@core/*": [
         "packages/core/src/*"
       ],
+      "@database": [
+        "packages/database/src/index.ts"
+      ],
+      "@database/*": [
+        "packages/database/src/*"
+      ],
       "@shared": [
         "packages/shared/src/index.ts"
       ],

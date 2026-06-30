@@ -136,6 +136,10 @@ function App(): React.JSX.Element {
       }
     )
 
+    // Signal to main process that React has fully mounted and all IPC listeners are active.
+    // Main process waits for this before flushing the startup file queue.
+    window.electron.ipcRenderer.send('renderer-ready')
+
     return (): void => {
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)

@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import { Document, calculateFileMd5 } from '@shared';
 import { DocumentRepository } from '../ports/repositories';
 import { CloudProvider } from '../ports/cloud-provider';
@@ -14,9 +15,9 @@ export type OpenWorkflowResult =
   | { type: 'LOCAL_FILE_NOT_FOUND'; localPath: string };
 
 /**
- * Use case to manage the open and import workflow (R1, R2, R3, R4).
- * Intercepts local path requests, resolves existing matches, and prompts user
- * when database misses require candidate linking or new drive imports.
+ * Use case to manage the open and import workflow (R1, R2, R3, R4, R9).
+ * Intercepts local path requests, resolves existing matches, prompts user
+ * when database misses require candidate linking, and manages conflict resolution.
  */
 export class OpenDocumentUseCase {
   private readonly docRepo: DocumentRepository;
@@ -57,11 +58,35 @@ export class OpenDocumentUseCase {
         // Edge Case: Drive version was deleted outside the app context
         existingDoc.status = 'DRIVE_DELETED';
         await this.docRepo.update(existingDoc);
-      } else {
-        await this.cloudProvider.openFile(existingDoc.drivePath);
-        existingDoc.lastOpened = new Date().toISOString();
-        await this.docRepo.update(existingDoc);
+        return { type: 'OPENED', document: existingDoc };
       }
+
+      // R9: Conflict Detection (either flagged by watcher, or cold-check both changed)
+      let isConflict = existingDoc.status === 'CONFLICT';
+      if (!isConflict && existingDoc.status === 'LINKED') {
+        const currentLocalHash = await calculateFileMd5(resolvedLocalPath);
+        const currentDriveHash = await calculateFileMd5(driveAbsPath);
+
+        if (
+          existingDoc.localHash &&
+          existingDoc.driveHash &&
+          currentLocalHash !== existingDoc.localHash &&
+          currentDriveHash !== existingDoc.driveHash
+        ) {
+          existingDoc.status = 'CONFLICT';
+          await this.docRepo.update(existingDoc);
+          isConflict = true;
+        }
+      }
+
+      if (isConflict) {
+        return this.resolveConflict(resolvedLocalPath, existingDoc);
+      }
+
+      // Normal Hit
+      await this.cloudProvider.openFile(existingDoc.drivePath);
+      existingDoc.lastOpened = new Date().toISOString();
+      await this.docRepo.update(existingDoc);
 
       return { type: 'OPENED', document: existingDoc };
     }
@@ -110,6 +135,142 @@ export class OpenDocumentUseCase {
     // choice.action === 'OPEN_DRIVE'
     const linkedDoc = await this.linkToDriveFile(resolvedLocalPath, choice.selected);
     return { type: 'OPENED', document: linkedDoc };
+  }
+
+  /**
+   * Helper to execute 6 strategies of Conflict Resolution (R9).
+   */
+  private async resolveConflict(
+    localPath: string,
+    doc: Document
+  ): Promise<OpenWorkflowResult> {
+    const choice = await this.interactor.promptConflict(localPath, doc);
+
+    if (choice === 'CANCEL') {
+      return { type: 'CANCELLED' };
+    }
+
+    const driveAbsPath = this.cloudProvider.resolveLocalPath(doc.drivePath);
+    const now = new Date().toISOString();
+
+    if (choice === 'KEEP_DRIVE') {
+      // Overwrite local with Drive content
+      fs.copyFileSync(driveAbsPath, localPath);
+      const fileHash = await calculateFileMd5(driveAbsPath);
+
+      doc.localHash = fileHash;
+      doc.driveHash = fileHash;
+      doc.status = 'LINKED';
+      doc.lastOpened = now;
+      await this.docRepo.update(doc);
+
+      await this.cloudProvider.openFile(doc.drivePath);
+      return { type: 'OPENED', document: doc };
+    }
+
+    if (choice === 'KEEP_LOCAL') {
+      // Overwrite Drive with local content
+      fs.copyFileSync(localPath, driveAbsPath);
+      const fileHash = await calculateFileMd5(localPath);
+
+      doc.localHash = fileHash;
+      doc.driveHash = fileHash;
+      doc.status = 'LINKED';
+      doc.lastOpened = now;
+      await this.docRepo.update(doc);
+
+      await this.cloudProvider.openFile(doc.drivePath);
+      return { type: 'OPENED', document: doc };
+    }
+
+    if (choice === 'KEEP_BOTH_RENAME_LOCAL') {
+      const ext = path.extname(localPath);
+      const base = path.basename(localPath, ext);
+      const dir = path.dirname(localPath);
+      const newLocalPath = path.join(dir, `${base} (Local Conflict)${ext}`);
+
+      // Rename local file on disk
+      fs.renameSync(localPath, newLocalPath);
+
+      // Unlink original doc
+      doc.localOriginalPath = null;
+      doc.localHash = null;
+      doc.status = 'UNLINKED';
+      await this.docRepo.update(doc);
+
+      // Import renamed local file to Drive as a new document
+      const importedDoc = await this.cloudProvider.importFile(newLocalPath, 'My Drive/Other');
+      
+      // Update link parameters on imported doc
+      importedDoc.localOriginalPath = newLocalPath;
+      importedDoc.localHash = await calculateFileMd5(newLocalPath);
+      importedDoc.status = 'LINKED';
+      importedDoc.lastOpened = now;
+      await this.docRepo.create(importedDoc);
+
+      await this.cloudProvider.openFile(importedDoc.drivePath);
+      return { type: 'OPENED', document: importedDoc };
+    }
+
+    if (choice === 'KEEP_BOTH_RENAME_DRIVE') {
+      const originalDrivePath = doc.drivePath;
+      const ext = path.extname(originalDrivePath);
+      const base = path.basename(originalDrivePath, ext);
+      const dir = path.dirname(originalDrivePath);
+      const newDrivePath = path.join(dir, `${base} (Drive Conflict)${ext}`);
+
+      const newDriveAbsPath = this.cloudProvider.resolveLocalPath(newDrivePath);
+
+      // Rename Drive file in mirror
+      fs.renameSync(driveAbsPath, newDriveAbsPath);
+
+      // Update the renamed Drive record to be unlinked
+      doc.drivePath = newDrivePath;
+      doc.localOriginalPath = null;
+      doc.localHash = null;
+      doc.status = 'UNLINKED';
+      await this.docRepo.update(doc);
+
+      // Copy local file to the original Drive path
+      fs.copyFileSync(localPath, driveAbsPath);
+
+      // Create new record for the original Drive path linked to local
+      const localHash = await calculateFileMd5(localPath);
+      const newDoc: Document = {
+        id: crypto.randomUUID(),
+        drivePath: originalDrivePath,
+        localOriginalPath: localPath,
+        driveHash: localHash,
+        localHash: localHash,
+        driveModifiedTime: now,
+        localModifiedTime: now,
+        createdAt: now,
+        updatedAt: now,
+        lastOpened: now,
+        status: 'LINKED',
+        metadata: {
+          size: fs.statSync(driveAbsPath).size,
+          provider: 'google-drive',
+        },
+        folderMappingId: doc.folderMappingId,
+      };
+      await this.docRepo.create(newDoc);
+
+      await this.cloudProvider.openFile(originalDrivePath);
+      return { type: 'OPENED', document: newDoc };
+    }
+
+    if (choice === 'OPEN_DRIVE_ANYWAY') {
+      await this.cloudProvider.openFile(doc.drivePath);
+      return { type: 'OPENED', document: doc };
+    }
+
+    if (choice === 'OPEN_LOCAL_ANYWAY') {
+      await this.cloudProvider.openFile(localPath);
+      return { type: 'OPENED', document: doc };
+    }
+
+    return { type: 'CANCELLED' };
   }
 
   /**

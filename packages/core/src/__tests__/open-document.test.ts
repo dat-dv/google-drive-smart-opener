@@ -48,6 +48,7 @@ describe('OpenDocumentUseCase Integration Tests with Prompting', () => {
     mockInteractor = {
       promptSingleCandidate: vi.fn().mockResolvedValue('OPEN_DRIVE'),
       promptMultipleCandidates: vi.fn().mockResolvedValue({ action: 'CANCEL' }),
+      promptConflict: vi.fn().mockResolvedValue('CANCEL'),
     };
 
     // Initialize Use Case
@@ -271,6 +272,130 @@ describe('OpenDocumentUseCase Integration Tests with Prompting', () => {
 
       it('should cancel action if user chooses CANCEL in multiple match', async () => {
         vi.mocked(mockInteractor.promptMultipleCandidates).mockResolvedValue({ action: 'CANCEL' });
+
+        const result = await useCase.execute(localPath);
+        expect(result.type).toBe('CANCELLED');
+      });
+    });
+
+    describe('Conflict Resolution Workflow (R9)', () => {
+      let localPath: string;
+      let drivePath: string;
+      let driveAbs: string;
+      let doc: Document;
+
+      beforeEach(async () => {
+        localPath = path.join(localWorkspaceDir, 'conflict.txt');
+        drivePath = 'My Drive/conflict.txt';
+        driveAbs = path.join(driveWorkspaceDir, drivePath);
+
+        fs.writeFileSync(localPath, 'Initial Local Content');
+        fs.mkdirSync(path.dirname(driveAbs), { recursive: true });
+        fs.writeFileSync(driveAbs, 'Initial Drive Content');
+
+        // Create a pre-linked conflict document in DB
+        doc = createDummyDocument({
+          drivePath,
+          localOriginalPath: localPath,
+          localHash: 'hash-local-old',
+          driveHash: 'hash-drive-old',
+          status: 'CONFLICT',
+        });
+        await docRepo.create(doc);
+      });
+
+      it('should overwrite local content with Drive content if choice is KEEP_DRIVE', async () => {
+        vi.mocked(mockInteractor.promptConflict).mockResolvedValue('KEEP_DRIVE');
+
+        const result = await useCase.execute(localPath);
+        expect(result.type).toBe('OPENED');
+        expect(fs.readFileSync(localPath, 'utf8')).toBe('Initial Drive Content');
+
+        const saved = await docRepo.findByLocalOriginalPath(localPath);
+        expect(saved?.status).toBe('LINKED');
+      });
+
+      it('should overwrite Drive content with local content if choice is KEEP_LOCAL', async () => {
+        vi.mocked(mockInteractor.promptConflict).mockResolvedValue('KEEP_LOCAL');
+
+        const result = await useCase.execute(localPath);
+        expect(result.type).toBe('OPENED');
+        expect(fs.readFileSync(driveAbs, 'utf8')).toBe('Initial Local Content');
+
+        const saved = await docRepo.findByLocalOriginalPath(localPath);
+        expect(saved?.status).toBe('LINKED');
+      });
+
+      it('should rename local file and import it if choice is KEEP_BOTH_RENAME_LOCAL', async () => {
+        vi.mocked(mockInteractor.promptConflict).mockResolvedValue('KEEP_BOTH_RENAME_LOCAL');
+
+        const result = await useCase.execute(localPath);
+        expect(result.type).toBe('OPENED');
+
+        const renamedLocalPath = path.join(localWorkspaceDir, 'conflict (Local Conflict).txt');
+        expect(fs.existsSync(renamedLocalPath)).toBe(true);
+        expect(fs.existsSync(localPath)).toBe(false);
+
+        // Renamed local should be linked
+        const savedNew = await docRepo.findByLocalOriginalPath(renamedLocalPath);
+        expect(savedNew).not.toBeNull();
+        expect(savedNew?.drivePath).toBe('My Drive/Other/conflict (Local Conflict).txt');
+        expect(savedNew?.status).toBe('LINKED');
+
+        // Original doc should be unlinked
+        const savedOld = await docRepo.findByDrivePath(drivePath);
+        expect(savedOld?.status).toBe('UNLINKED');
+        expect(savedOld?.localOriginalPath).toBeNull();
+      });
+
+      it('should rename Drive file and replace original with local if choice is KEEP_BOTH_RENAME_DRIVE', async () => {
+        vi.mocked(mockInteractor.promptConflict).mockResolvedValue('KEEP_BOTH_RENAME_DRIVE');
+
+        const result = await useCase.execute(localPath);
+        expect(result.type).toBe('OPENED');
+
+        // Renamed Drive file should exist on disk
+        const renamedDriveAbs = path.join(driveWorkspaceDir, 'My Drive/conflict (Drive Conflict).txt');
+        expect(fs.existsSync(renamedDriveAbs)).toBe(true);
+        expect(fs.readFileSync(renamedDriveAbs, 'utf8')).toBe('Initial Drive Content');
+
+        // Original Drive path should now contain local content
+        expect(fs.readFileSync(driveAbs, 'utf8')).toBe('Initial Local Content');
+
+        // The renamed Drive file should be in DB as UNLINKED
+        const renamedDoc = await docRepo.findByDrivePath('My Drive/conflict (Drive Conflict).txt');
+        expect(renamedDoc?.status).toBe('UNLINKED');
+
+        // The original Drive path should be in DB as LINKED to local
+        const originalDoc = await docRepo.findByDrivePath(drivePath);
+        expect(originalDoc?.status).toBe('LINKED');
+        expect(originalDoc?.localOriginalPath).toBe(localPath);
+      });
+
+      it('should open Drive version anyway without changes if choice is OPEN_DRIVE_ANYWAY', async () => {
+        vi.mocked(mockInteractor.promptConflict).mockResolvedValue('OPEN_DRIVE_ANYWAY');
+
+        const result = await useCase.execute(localPath);
+        expect(result.type).toBe('OPENED');
+        
+        // Status remains CONFLICT
+        const saved = await docRepo.findByLocalOriginalPath(localPath);
+        expect(saved?.status).toBe('CONFLICT');
+      });
+
+      it('should open Local version anyway without changes if choice is OPEN_LOCAL_ANYWAY', async () => {
+        vi.mocked(mockInteractor.promptConflict).mockResolvedValue('OPEN_LOCAL_ANYWAY');
+
+        const result = await useCase.execute(localPath);
+        expect(result.type).toBe('OPENED');
+
+        // Status remains CONFLICT
+        const saved = await docRepo.findByLocalOriginalPath(localPath);
+        expect(saved?.status).toBe('CONFLICT');
+      });
+
+      it('should return CANCELLED if choice is CANCEL', async () => {
+        vi.mocked(mockInteractor.promptConflict).mockResolvedValue('CANCEL');
 
         const result = await useCase.execute(localPath);
         expect(result.type).toBe('CANCELLED');

@@ -120,7 +120,7 @@ export class GoogleDriveProvider implements CloudProvider {
    * Opens the file on macOS using the default application association.
    */
   public async openFile(drivePath: string): Promise<void> {
-    const absolutePath = this.resolveLocalPath(drivePath);
+    const absolutePath = path.isAbsolute(drivePath) ? drivePath : this.resolveLocalPath(drivePath);
     if (!fs.existsSync(absolutePath)) {
       throw new Error(`File does not exist: ${absolutePath}`);
     }

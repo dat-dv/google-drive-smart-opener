@@ -42,7 +42,7 @@ function logToFile(msg: string): void {
     const logDir = join(home, 'Library/Application Support/google-drive-smart-opener')
     fs.mkdirSync(logDir, { recursive: true })
     fs.appendFileSync(join(logDir, 'app-debug.log'), line)
-  } catch (e) {
+  } catch {
     // Ignore
   }
 }
@@ -52,7 +52,7 @@ logToFile('--- Application Main Process Started ---')
 class ElectronUserInteractor implements UserInteractor {
   private win: BrowserWindow | null = null
 
-  setWindow(win: BrowserWindow) {
+  setWindow(win: BrowserWindow): void {
     this.win = win
   }
 
@@ -232,7 +232,7 @@ async function initializeGoogleDriveServices(driveRoot: string): Promise<void> {
   openDocumentUseCase = new OpenDocumentUseCase(docRepo, driveProvider, interactor, taskRepo)
   offlineSyncService = new OfflineSyncService(taskRepo, docRepo, driveProvider)
 
-  watcher = new DriveWatcher(docRepo, mappingRepo, driveProvider)
+  watcher = new DriveWatcher(docRepo, driveProvider)
   await watcher.start()
 }
 
@@ -280,7 +280,8 @@ app.whenReady().then(async () => {
 
   // Load drive root from DB settings
   const db = dbManager.getDatabase()
-  const row = db.prepare("SELECT value FROM meta WHERE key = 'google_drive_root'").get() as { value: string } | undefined
+  const row = db.prepare("SELECT value FROM meta WHERE key = 'google_drive_root'").get() as
+    { value: string } | undefined
   const driveRoot = row ? row.value : getGoogleDriveRoot()
 
   await initializeGoogleDriveServices(driveRoot)
@@ -326,7 +327,8 @@ app.whenReady().then(async () => {
   // Register Settings IPC Handlers
   ipcMain.handle('settings:get-drive-root', async () => {
     const db = dbManager.getDatabase()
-    const row = db.prepare("SELECT value FROM meta WHERE key = 'google_drive_root'").get() as { value: string } | undefined
+    const row = db.prepare("SELECT value FROM meta WHERE key = 'google_drive_root'").get() as
+      { value: string } | undefined
     return {
       path: row ? row.value : getGoogleDriveRoot(),
       isConfigured: !!row
@@ -366,6 +368,13 @@ app.whenReady().then(async () => {
     })
     if (result && result[0]) {
       handleOpenFile(result[0])
+    }
+  })
+
+  ipcMain.handle('dialog:open-file-path', async (_, filePath) => {
+    logToFile(`dialog:open-file-path called with: ${filePath}`)
+    if (filePath) {
+      handleOpenFile(filePath)
     }
   })
 

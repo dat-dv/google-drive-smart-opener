@@ -1,4 +1,4 @@
-import { Document, FolderMapping, OfflineTask } from '@shared/types';
+import { Document, FolderMapping, OfflineTask } from '@shared/types'
 
 /**
  * Port interface for Document data access operations.
@@ -8,49 +8,49 @@ export interface DocumentRepository {
   /**
    * Retrieves a document by its unique identifier.
    */
-  findById(id: string): Promise<Document | null>;
+  findById(id: string): Promise<Document | null>
 
   /**
    * Finds a document by its Google Drive path.
    * Path index is unique, ensuring rapid lookups.
    */
-  findByDrivePath(drivePath: string): Promise<Document | null>;
+  findByDrivePath(drivePath: string): Promise<Document | null>
 
   /**
    * Finds a document by its local original path.
    */
-  findByLocalOriginalPath(localOriginalPath: string): Promise<Document | null>;
+  findByLocalOriginalPath(localOriginalPath: string): Promise<Document | null>
 
   /**
    * Finds documents matching a Google Drive checksum hash.
    * Used for deduplication and matching file identity across path changes.
    */
-  findByDriveHash(driveHash: string): Promise<Document[]>;
+  findByDriveHash(driveHash: string): Promise<Document[]>
 
   /**
    * Persists a new document record.
    */
-  create(document: Document): Promise<void>;
+  create(document: Document): Promise<void>
 
   /**
    * Updates an existing document record.
    */
-  update(document: Document): Promise<void>;
+  update(document: Document): Promise<void>
 
   /**
    * Deletes a document record by ID.
    */
-  delete(id: string): Promise<void>;
+  delete(id: string): Promise<void>
 
   /**
    * Lists all documents in the system.
    */
-  list(): Promise<Document[]>;
+  list(): Promise<Document[]>
 
   /**
    * Lists all documents belonging to a specific folder mapping.
    */
-  listByFolderMappingId(folderMappingId: string): Promise<Document[]>;
+  listByFolderMappingId(folderMappingId: string): Promise<Document[]>
 }
 
 /**
@@ -60,38 +60,38 @@ export interface FolderMappingRepository {
   /**
    * Retrieves a folder mapping by its unique identifier.
    */
-  findById(id: string): Promise<FolderMapping | null>;
+  findById(id: string): Promise<FolderMapping | null>
 
   /**
    * Finds a mapping by the exact local folder path.
    * Local folder path mappings are unique.
    */
-  findByLocalFolderPath(localFolderPath: string): Promise<FolderMapping | null>;
+  findByLocalFolderPath(localFolderPath: string): Promise<FolderMapping | null>
 
   /**
    * Finds a mapping by the Google Drive folder path.
    */
-  findByDriveFolderPath(driveFolderPath: string): Promise<FolderMapping | null>;
+  findByDriveFolderPath(driveFolderPath: string): Promise<FolderMapping | null>
 
   /**
    * Persists a new folder mapping.
    */
-  create(mapping: FolderMapping): Promise<void>;
+  create(mapping: FolderMapping): Promise<void>
 
   /**
    * Updates an existing folder mapping.
    */
-  update(mapping: FolderMapping): Promise<void>;
+  update(mapping: FolderMapping): Promise<void>
 
   /**
    * Deletes a folder mapping.
    */
-  delete(id: string): Promise<void>;
+  delete(id: string): Promise<void>
 
   /**
    * Lists all folder mappings.
    */
-  list(): Promise<FolderMapping[]>;
+  list(): Promise<FolderMapping[]>
 }
 
 /**
@@ -101,20 +101,20 @@ export interface OfflineTaskRepository {
   /**
    * Persists a new offline task.
    */
-  create(task: OfflineTask): Promise<void>;
+  create(task: OfflineTask): Promise<void>
 
   /**
    * Updates an offline task.
    */
-  update(task: OfflineTask): Promise<void>;
+  update(task: OfflineTask): Promise<void>
 
   /**
    * Deletes an offline task.
    */
-  delete(id: string): Promise<void>;
+  delete(id: string): Promise<void>
 
   /**
    * Lists all offline tasks with PENDING status.
    */
-  listPending(): Promise<OfflineTask[]>;
+  listPending(): Promise<OfflineTask[]>
 }

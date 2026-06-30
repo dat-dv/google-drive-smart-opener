@@ -1,14 +1,5 @@
 import React, { useState, useEffect } from 'react'
 
-interface FolderMapping {
-  id: string
-  localFolderPath: string
-  driveFolderPath: string
-  createdAt: string
-  updatedAt: string
-  status: 'ACTIVE' | 'INACTIVE'
-}
-
 interface Document {
   id: string
   drivePath: string
@@ -25,18 +16,63 @@ interface Document {
   }
 }
 
+interface TreeNode {
+  name: string
+  path: string
+  type: 'directory' | 'file'
+  document?: Document
+  children: { [name: string]: TreeNode }
+}
+
+const buildDocTree = (docs: Document[]): TreeNode => {
+  const root: TreeNode = {
+    name: 'Google Drive',
+    path: 'My Drive',
+    type: 'directory',
+    children: {}
+  }
+
+  for (const doc of docs) {
+    const parts = doc.drivePath.split('/').filter(Boolean)
+    let current = root
+    let accumulatedPath = 'My Drive'
+
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i]
+      if (i === 0 && (part === 'My Drive' || part === 'Shared Drives' || part === 'Google Drive')) {
+        continue
+      }
+      accumulatedPath = `${accumulatedPath}/${part}`
+      const isLast = i === parts.length - 1
+
+      if (!current.children[part]) {
+        current.children[part] = {
+          name: part,
+          path: accumulatedPath,
+          type: isLast ? 'file' : 'directory',
+          document: isLast ? doc : undefined,
+          children: {}
+        }
+      }
+      current = current.children[part]
+    }
+  }
+
+  return root
+}
+
 function App(): React.JSX.Element {
-  const [activeTab, setActiveTab] = useState<'mappings' | 'documents' | 'conflicts'>('mappings')
-  const [mappings, setMappings] = useState<FolderMapping[]>([])
+  const [activeTab, setActiveTab] = useState<'documents' | 'conflicts'>('documents')
   const [conflicts, setConflicts] = useState<Document[]>([])
   const [allDocs, setAllDocs] = useState<Document[]>([])
-  const [showAddModal, setShowAddModal] = useState(false)
-  const [localPathInput, setLocalPathInput] = useState('')
-  const [drivePathInput, setDrivePathInput] = useState('')
   const [isOnline, setIsOnline] = useState(navigator.onLine)
+  const [expandedPaths, setExpandedPaths] = useState<Record<string, boolean>>({ 'My Drive': true })
 
   // Google Drive Root Configuration settings states
-  const [driveRootInfo, setDriveRootInfo] = useState<{ path: string; isConfigured: boolean } | null>(null)
+  const [driveRootInfo, setDriveRootInfo] = useState<{
+    path: string
+    isConfigured: boolean
+  } | null>(null)
   const [showSetupModal, setShowSetupModal] = useState(false)
   const [setupPathInput, setSetupPathInput] = useState('')
 
@@ -60,6 +96,188 @@ function App(): React.JSX.Element {
     document: Document
   } | null>(null)
 
+  const renderTreeNode = (node: TreeNode, depth = 0): React.JSX.Element => {
+    const isExpanded = !!expandedPaths[node.path]
+    const hasChildren = Object.keys(node.children).length > 0
+
+    const handleToggle = (): void => {
+      if (node.type === 'directory') {
+        setExpandedPaths((prev) => ({
+          ...prev,
+          [node.path]: !prev[node.path]
+        }))
+      }
+    }
+
+    const fileIcon = (filename: string): React.JSX.Element => {
+      const ext = filename.split('.').pop()?.toLowerCase() || ''
+      if (['xlsx', 'xls', 'csv'].includes(ext)) {
+        return (
+          <span className="p-1 bg-emerald-500/10 text-emerald-400 rounded border border-emerald-500/20 text-[10px] font-bold shrink-0">
+            XLS
+          </span>
+        )
+      }
+      if (['docx', 'doc', 'txt', 'md'].includes(ext)) {
+        return (
+          <span className="p-1 bg-blue-500/10 text-blue-400 rounded border border-blue-500/20 text-[10px] font-bold shrink-0">
+            DOC
+          </span>
+        )
+      }
+      if (ext === 'pdf') {
+        return (
+          <span className="p-1 bg-red-500/10 text-red-400 rounded border border-red-500/20 text-[10px] font-bold shrink-0">
+            PDF
+          </span>
+        )
+      }
+      return (
+        <svg
+          className="w-4 h-4 text-indigo-400 shrink-0"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+          />
+        </svg>
+      )
+    }
+
+    return (
+      <div key={node.path || node.name} className="flex flex-col select-none">
+        {/* Node Header Row */}
+        <div
+          onClick={handleToggle}
+          className={`flex items-center justify-between py-2 px-3 rounded-xl border border-transparent transition-all duration-150 ${
+            node.type === 'directory'
+              ? 'hover:bg-white/5 cursor-pointer'
+              : 'hover:bg-slate-900/40 hover:border-indigo-500/20'
+          }`}
+          style={{ paddingLeft: `${Math.max(12, depth * 20)}px` }}
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            {node.type === 'directory' ? (
+              <div className="flex items-center gap-1.5 shrink-0">
+                {/* Collapse / Expand Arrow */}
+                <svg
+                  className={`w-3.5 h-3.5 text-slate-500 transition-transform duration-200 ${
+                    isExpanded ? 'rotate-90' : ''
+                  }`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+                {/* Folder Icon */}
+                <svg
+                  className="w-4.5 h-4.5 text-amber-400 shrink-0"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+                  />
+                </svg>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 shrink-0 pl-5">{fileIcon(node.name)}</div>
+            )}
+            <span
+              className={`text-sm truncate ${node.type === 'directory' ? 'font-bold text-slate-300' : 'text-slate-200 font-mono text-xs'}`}
+            >
+              {node.name}
+            </span>
+          </div>
+
+          {/* Metadata & Actions for files */}
+          {node.type === 'file' && node.document && (
+            <div className="flex items-center gap-3 shrink-0 ml-4">
+              {/* File size & Last opened */}
+              <span className="text-[10px] text-slate-500 font-mono hidden md:inline">
+                {node.document.metadata?.size
+                  ? `${(node.document.metadata.size / 1024).toFixed(1)} KB`
+                  : ''}
+              </span>
+              <span className="text-[10px] text-slate-500 hidden lg:inline">
+                {node.document.lastOpened
+                  ? `Opened: ${new Date(node.document.lastOpened).toLocaleDateString()}`
+                  : ''}
+              </span>
+
+              {/* Status Badge */}
+              <span
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
+                  node.document.status === 'LINKED'
+                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                    : node.document.status === 'CONFLICT'
+                      ? 'bg-red-500/10 text-red-400 border border-red-500/20'
+                      : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                }`}
+              >
+                {node.document.status}
+              </span>
+
+              {/* Action Button: open local file */}
+              {node.document.localOriginalPath && (
+                <button
+                  onClick={(e): void => {
+                    e.stopPropagation()
+                    window.electron.ipcRenderer.invoke(
+                      'dialog:open-file-path',
+                      node.document!.localOriginalPath
+                    )
+                  }}
+                  className="p-1.5 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 text-indigo-400 hover:text-indigo-300 transition-all duration-150"
+                  title="Open local file with Google Drive"
+                >
+                  <svg
+                    className="w-3.5 h-3.5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                    />
+                  </svg>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Children Render */}
+        {node.type === 'directory' && hasChildren && isExpanded && (
+          <div className="flex flex-col">
+            {(Object.values(node.children) as TreeNode[])
+              .sort((a, b) => {
+                if (a.type !== b.type) {
+                  return a.type === 'directory' ? -1 : 1
+                }
+                return a.name.localeCompare(b.name)
+              })
+              .map((child) => renderTreeNode(child, depth + 1))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   // Load Google Drive root path info
   const loadDriveRootInfo = async (): Promise<void> => {
     try {
@@ -71,16 +289,6 @@ function App(): React.JSX.Element {
       }
     } catch (err) {
       console.error('Failed to load drive root info:', err)
-    }
-  }
-
-  // Load Folder Mappings
-  const loadMappings = async (): Promise<void> => {
-    try {
-      const list = await window.electron.ipcRenderer.invoke('mappings:list')
-      setMappings(list || [])
-    } catch (err) {
-      console.error('Failed to load mappings:', err)
     }
   }
 
@@ -105,12 +313,12 @@ function App(): React.JSX.Element {
   }
 
   const reloadAllData = (): void => {
-    loadMappings()
     loadConflicts()
     loadAllDocs()
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadDriveRootInfo()
     reloadAllData()
 
@@ -167,19 +375,8 @@ function App(): React.JSX.Element {
       if (typeof unsubMultiple === 'function') unsubMultiple()
       if (typeof unsubConflict === 'function') unsubConflict()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  // Folder selector trigger
-  const handleSelectLocalFolder = async (): Promise<void> => {
-    try {
-      const path = await window.electron.ipcRenderer.invoke('dialog:select-folder')
-      if (path) {
-        setLocalPathInput(path)
-      }
-    } catch (err) {
-      console.error(err)
-    }
-  }
 
   const handleBrowseSetupPath = async (): Promise<void> => {
     try {
@@ -201,33 +398,9 @@ function App(): React.JSX.Element {
       loadDriveRootInfo()
       reloadAllData()
     } catch (err) {
-      alert(`Error setting Google Drive root path: ${err instanceof Error ? err.message : String(err)}`)
-    }
-  }
-
-  // Submit new mapping creation
-  const handleAddMappingSubmit = async (e: React.FormEvent): Promise<void> => {
-    e.preventDefault()
-    if (!localPathInput || !drivePathInput) return
-
-    try {
-      await window.electron.ipcRenderer.invoke('mappings:create', localPathInput, drivePathInput)
-      setShowAddModal(false)
-      setLocalPathInput('')
-      setDrivePathInput('')
-      reloadAllData()
-    } catch (err) {
-      console.error(err)
-    }
-  }
-
-  // Delete mapping
-  const handleDeleteMapping = async (id: string): Promise<void> => {
-    try {
-      await window.electron.ipcRenderer.invoke('mappings:delete', id)
-      reloadAllData()
-    } catch (err) {
-      console.error(err)
+      alert(
+        `Error setting Google Drive root path: ${err instanceof Error ? err.message : String(err)}`
+      )
     }
   }
 
@@ -250,10 +423,9 @@ function App(): React.JSX.Element {
         selected
       })
     } else {
-      window.electron.ipcRenderer.send(
-        `prompt-multiple-candidates-response-${multiplePrompt.id}`,
-        { action }
-      )
+      window.electron.ipcRenderer.send(`prompt-multiple-candidates-response-${multiplePrompt.id}`, {
+        action
+      })
     }
     setMultiplePrompt(null)
     setSelectedCandidateId(null)
@@ -292,7 +464,15 @@ function App(): React.JSX.Element {
       <header className="flex items-center justify-between p-5 rounded-2xl border border-white/5 bg-slate-900/40 backdrop-blur-xl shadow-2xl">
         <div className="flex items-center gap-4">
           <div className="p-2.5 bg-indigo-500/10 rounded-xl border border-indigo-500/20 shadow-[0_0_15px_rgba(99,102,241,0.15)]">
-            <svg className="w-8 h-8 text-indigo-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              className="w-8 h-8 text-indigo-400"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <path d="M12 2L2 22H22L12 2Z" />
               <circle cx="12" cy="14" r="3" />
             </svg>
@@ -324,8 +504,18 @@ function App(): React.JSX.Element {
               await window.electron.ipcRenderer.invoke('dialog:open-file')
             }}
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"
+              />
             </svg>
             Open File...
           </button>
@@ -337,8 +527,18 @@ function App(): React.JSX.Element {
         <div className="flex items-center justify-between p-4 px-6 rounded-2xl border border-white/5 bg-slate-900/25 backdrop-blur-xl shadow-lg">
           <div className="flex items-center gap-3.5 min-w-0">
             <div className="p-2 bg-indigo-500/10 rounded-lg text-indigo-400 border border-indigo-500/20">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+                />
               </svg>
             </div>
             <div className="min-w-0">
@@ -390,7 +590,6 @@ function App(): React.JSX.Element {
 
       {/* Main Content Areas */}
       <main className="flex flex-col gap-4">
-
         {activeTab === 'documents' && (
           <div className="flex flex-col gap-4">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400">
@@ -400,56 +599,13 @@ function App(): React.JSX.Element {
               <div className="flex flex-col items-center justify-center py-16 px-4 rounded-2xl border border-dashed border-white/5 bg-slate-900/10 text-center gap-4">
                 <div className="text-4xl">📄</div>
                 <p className="text-sm text-slate-500 max-w-xs">
-                  No linked documents in index. Open local files inside mapping paths to synchronize them.
+                  No linked documents in index. Open local files to synchronize them with Google
+                  Drive.
                 </p>
               </div>
             ) : (
-              <div className="overflow-x-auto rounded-2xl border border-white/5 bg-slate-900/20 backdrop-blur-xl">
-                <table className="w-full border-collapse text-left text-sm text-slate-300">
-                  <thead className="bg-slate-950/45 text-xs font-semibold uppercase text-slate-400 border-b border-white/5">
-                    <tr>
-                      <th className="px-6 py-4">Drive Path</th>
-                      <th className="px-6 py-4">Local Original Location</th>
-                      <th className="px-6 py-4">Last Opened</th>
-                      <th className="px-6 py-4">Sync Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {allDocs.map((doc) => (
-                      <tr key={doc.id} className="hover:bg-white/2 transition-colors">
-                        <td className="px-6 py-4 font-mono text-xs max-w-xs truncate text-slate-200">
-                          {doc.drivePath}
-                        </td>
-                        <td className="px-6 py-4 font-mono text-xs max-w-xs truncate text-slate-400">
-                          {doc.localOriginalPath || 'N/A'}
-                        </td>
-                        <td className="px-6 py-4 text-xs">
-                          {doc.lastOpened ? new Date(doc.lastOpened).toLocaleString() : 'Never'}
-                        </td>
-                        <td className="px-6 py-4">
-                          <span
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                              doc.status === 'LINKED'
-                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                : doc.status === 'CONFLICT'
-                                ? 'bg-red-500/10 text-red-400 border border-red-500/20'
-                                : doc.status === 'UNLINKED'
-                                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                : 'bg-slate-500/10 text-slate-400 border border-slate-500/20'
-                            }`}
-                          >
-                            {doc.status}
-                            {doc.metadata?.offlinePending && (
-                              <span className="text-[9px] text-amber-500 font-semibold lowercase">
-                                (pending sync)
-                              </span>
-                            )}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="p-4 rounded-2xl border border-white/5 bg-slate-900/25 backdrop-blur-xl flex flex-col gap-1 max-h-[600px] overflow-y-auto">
+                {renderTreeNode(buildDocTree(allDocs))}
               </div>
             )}
           </div>
@@ -483,7 +639,8 @@ function App(): React.JSX.Element {
                       </div>
                       <div className="flex flex-col gap-1 text-xs font-mono text-slate-300 break-all">
                         <div>
-                          <strong className="text-slate-500">Local original:</strong> {doc.localOriginalPath}
+                          <strong className="text-slate-500">Local original:</strong>{' '}
+                          {doc.localOriginalPath}
                         </div>
                         <div>
                           <strong className="text-slate-500">Drive mirror:</strong> {doc.drivePath}
@@ -504,70 +661,6 @@ function App(): React.JSX.Element {
         )}
       </main>
 
-      {/* MODAL: Add Folder Mapping */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-fade-in">
-          <form
-            className="w-full max-w-lg bg-slate-900/90 border border-white/10 rounded-3xl shadow-2xl overflow-hidden animate-slide-up"
-            onSubmit={handleAddMappingSubmit}
-          >
-            <div className="p-6 border-b border-white/5">
-              <h2 className="text-lg font-bold text-white">Add Folder Mapping</h2>
-            </div>
-            <div className="p-6 flex flex-col gap-5">
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-semibold text-slate-400">Local folder to watch</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    className="flex-1 bg-slate-950/50 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500 transition-all font-mono"
-                    placeholder="/Users/username/Workspace"
-                    value={localPathInput}
-                    onChange={(e): void => setLocalPathInput(e.target.value)}
-                    required
-                  />
-                  <button
-                    type="button"
-                    className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-sm font-semibold text-white transition-all"
-                    onClick={handleSelectLocalFolder}
-                  >
-                    Browse
-                  </button>
-                </div>
-              </div>
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-semibold text-slate-400">
-                  Google Drive Mirror Folder (Relative to My Drive)
-                </label>
-                <input
-                  type="text"
-                  className="w-full bg-slate-950/50 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500 transition-all font-mono"
-                  placeholder="My Drive/ProjectMirror"
-                  value={drivePathInput}
-                  onChange={(e): void => setDrivePathInput(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-            <div className="p-5 bg-slate-950/20 border-t border-white/5 flex items-center justify-end gap-3">
-              <button
-                type="button"
-                className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-sm font-semibold text-slate-300 transition-all"
-                onClick={(): void => setShowAddModal(false)}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold shadow-lg shadow-indigo-500/20 transition-all"
-              >
-                Create Link
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
       {/* MODAL: Single Candidate Prompt */}
       {singlePrompt && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-fade-in">
@@ -584,7 +677,8 @@ function App(): React.JSX.Element {
                   <strong className="text-slate-500">Local:</strong> {singlePrompt.localPath}
                 </div>
                 <div>
-                  <strong className="text-slate-500">Drive:</strong> {singlePrompt.candidate.drivePath}
+                  <strong className="text-slate-500">Drive:</strong>{' '}
+                  {singlePrompt.candidate.drivePath}
                 </div>
               </div>
             </div>
@@ -634,7 +728,9 @@ function App(): React.JSX.Element {
                     }`}
                     onClick={(): void => setSelectedCandidateId(c.id)}
                   >
-                    <span className="text-xs font-medium font-mono truncate mr-4">{c.drivePath}</span>
+                    <span className="text-xs font-medium font-mono truncate mr-4">
+                      {c.drivePath}
+                    </span>
                     <span className="text-[10px] px-2 py-0.5 rounded bg-slate-950/40 text-slate-500 uppercase tracking-wider font-semibold">
                       {c.status}
                     </span>
@@ -676,7 +772,8 @@ function App(): React.JSX.Element {
             </div>
             <div className="p-6 flex flex-col gap-4">
               <p className="text-sm text-slate-400 leading-relaxed">
-                Both local and Drive copies have been modified independently. Select a resolution strategy:
+                Both local and Drive copies have been modified independently. Select a resolution
+                strategy:
               </p>
               <div className="flex flex-col gap-2.5 max-h-80 overflow-y-auto pr-1">
                 {/* 1. KEEP_DRIVE */}
@@ -713,9 +810,11 @@ function App(): React.JSX.Element {
                   onClick={(): void => respondConflict('KEEP_BOTH_RENAME_LOCAL')}
                 >
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-sm font-bold text-slate-200">Keep Both (Rename Local)</span>
+                    <span className="text-sm font-bold text-slate-200">
+                      Keep Both (Rename Local)
+                    </span>
                     <span className="text-xs text-slate-500">
-                      Rename local to "file (Local Conflict)" and upload as new.
+                      Rename local to &quot;file (Local Conflict)&quot; and upload as new.
                     </span>
                   </div>
                   <span className="text-lg">📁</span>
@@ -727,7 +826,9 @@ function App(): React.JSX.Element {
                   onClick={(): void => respondConflict('KEEP_BOTH_RENAME_DRIVE')}
                 >
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-sm font-bold text-slate-200">Keep Both (Rename Drive Copy)</span>
+                    <span className="text-sm font-bold text-slate-200">
+                      Keep Both (Rename Drive Copy)
+                    </span>
                     <span className="text-xs text-slate-500">
                       Rename the old Drive copy and upload your local copy to the original path.
                     </span>
@@ -741,7 +842,9 @@ function App(): React.JSX.Element {
                   onClick={(): void => respondConflict('OPEN_DRIVE_ANYWAY')}
                 >
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-sm font-bold text-slate-200">Open Drive Version Anyway</span>
+                    <span className="text-sm font-bold text-slate-200">
+                      Open Drive Version Anyway
+                    </span>
                     <span className="text-xs text-slate-500">
                       Open the Drive mirror file as-is without resolving the conflict status.
                     </span>
@@ -755,7 +858,9 @@ function App(): React.JSX.Element {
                   onClick={(): void => respondConflict('OPEN_LOCAL_ANYWAY')}
                 >
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-sm font-bold text-slate-200">Open Local Version Anyway</span>
+                    <span className="text-sm font-bold text-slate-200">
+                      Open Local Version Anyway
+                    </span>
                     <span className="text-xs text-slate-500">
                       Open your local original file directly without synchronization changes.
                     </span>
@@ -782,8 +887,18 @@ function App(): React.JSX.Element {
             <div className="p-6 pb-4 border-b border-white/5 bg-gradient-to-br from-indigo-500/10 to-transparent">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 bg-indigo-500/15 rounded-xl border border-indigo-500/30 text-indigo-400">
-                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                    />
                     <circle cx="12" cy="12" r="3" />
                   </svg>
                 </div>
@@ -797,11 +912,13 @@ function App(): React.JSX.Element {
                 </div>
               </div>
             </div>
-            
+
             <form onSubmit={handleSaveSetupPath} className="p-6 flex flex-col gap-5">
               <div className="text-xs text-slate-400 leading-relaxed bg-white/5 p-4 rounded-xl border border-white/5">
                 <p className="mb-2 font-semibold text-slate-300">Why is this needed?</p>
-                Google Drive for Desktop syncs your cloud files locally. To read the file metadata (Item IDs) and map folders, the app needs to know your local Google Drive root folder path.
+                Google Drive for Desktop syncs your cloud files locally. To read the file metadata
+                (Item IDs) and map folders, the app needs to know your local Google Drive root
+                folder path.
               </div>
 
               <div className="flex flex-col gap-2">

@@ -58,4 +58,4 @@ export const initialMigration = {
     DROP TABLE IF EXISTS folder_mappings;
     DROP TABLE IF EXISTS meta;
   `
-};
+}

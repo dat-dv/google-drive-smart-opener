@@ -140,12 +140,16 @@ export class GoogleDriveProvider implements CloudProvider {
         const itemId = await execCmd(`xattr -p com.google.drivefs.item-id#S "${absolutePath}"`)
         if (itemId) {
           const driveUrl = `https://docs.google.com/open?id=${itemId}`
-          console.log(`[GoogleDriveProvider] Found item ID ${itemId}. Opening in browser: ${driveUrl}`)
+          console.log(
+            `[GoogleDriveProvider] Found item ID ${itemId}. Opening in browser: ${driveUrl}`
+          )
           await execCmd(`open "${driveUrl}"`)
           return
         }
       } catch (err) {
-        console.warn(`[GoogleDriveProvider] Failed to get Drive Item ID or open URL: ${err}. Falling back to default app.`)
+        console.warn(
+          `[GoogleDriveProvider] Failed to get Drive Item ID or open URL: ${err}. Falling back to default app.`
+        )
       }
     }
 

@@ -1,18 +1,18 @@
-import DatabaseConnection from 'better-sqlite3';
-import { migrations } from './migrations';
+import DatabaseConnection from 'better-sqlite3'
+import { migrations } from './migrations'
 
 /**
  * Manages the SQLite database connection, lifecycle, and schema migrations.
  */
 export class DatabaseManager {
-  private db: DatabaseConnection.Database | null = null;
-  private readonly dbPath: string;
+  private db: DatabaseConnection.Database | null = null
+  private readonly dbPath: string
 
   /**
    * Initializes the DatabaseManager with a file path or ':memory:' for tests.
    */
   constructor(dbPath: string) {
-    this.dbPath = dbPath;
+    this.dbPath = dbPath
   }
 
   /**
@@ -21,24 +21,26 @@ export class DatabaseManager {
    */
   public connect(): void {
     if (this.db) {
-      return;
+      return
     }
 
     try {
       this.db = new DatabaseConnection(this.dbPath, {
         fileMustExist: false,
-        timeout: 5000,
-      });
+        timeout: 5000
+      })
 
       // Enable foreign key support and WAL mode for concurrent read/write efficiency
-      this.db.pragma('foreign_keys = ON');
-      this.db.pragma('journal_mode = WAL');
+      this.db.pragma('foreign_keys = ON')
+      this.db.pragma('journal_mode = WAL')
 
-      this.runMigrations();
+      this.runMigrations()
     } catch (error) {
       // Explicit error handling and clean connection state
-      this.db = null;
-      throw new Error(`Failed to initialize SQLite database: ${error instanceof Error ? error.message : String(error)}`);
+      this.db = null
+      throw new Error(
+        `Failed to initialize SQLite database: ${error instanceof Error ? error.message : String(error)}`
+      )
     }
   }
 
@@ -47,8 +49,8 @@ export class DatabaseManager {
    */
   public disconnect(): void {
     if (this.db) {
-      this.db.close();
-      this.db = null;
+      this.db.close()
+      this.db = null
     }
   }
 
@@ -58,9 +60,9 @@ export class DatabaseManager {
    */
   public getDatabase(): DatabaseConnection.Database {
     if (!this.db) {
-      throw new Error('Database is not connected. Call connect() first.');
+      throw new Error('Database is not connected. Call connect() first.')
     }
-    return this.db;
+    return this.db
   }
 
   /**
@@ -68,37 +70,42 @@ export class DatabaseManager {
    * Runs the process within a transaction to guarantee atomic, crash-safe schema updates.
    */
   private runMigrations(): void {
-    const db = this.getDatabase();
+    const db = this.getDatabase()
 
     // Create the meta table if it doesn't exist yet to check schema version
-    db.prepare(`
+    db.prepare(
+      `
       CREATE TABLE IF NOT EXISTS meta (
         key TEXT PRIMARY KEY,
         value TEXT
       )
-    `).run();
+    `
+    ).run()
 
     // Check current database schema version
-    const versionRow = db.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get() as { value: string } | undefined;
-    let currentVersion = versionRow ? parseInt(versionRow.value, 10) : 0;
+    const versionRow = db.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get() as
+      { value: string } | undefined
+    let currentVersion = versionRow ? parseInt(versionRow.value, 10) : 0
 
-    const latestVersion = migrations.length;
+    const latestVersion = migrations.length
     if (currentVersion >= latestVersion) {
-      return; // Already up to date
+      return // Already up to date
     }
 
     // Execute outstanding migrations within a transaction
     const executeMigrationTransaction = db.transaction((pendingMigrations) => {
       for (const migration of pendingMigrations) {
         // Run migration statements
-        db.exec(migration.up);
-        currentVersion = migration.version;
+        db.exec(migration.up)
+        currentVersion = migration.version
         // Update database schema version
-        db.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', ?)").run(String(currentVersion));
+        db.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', ?)").run(
+          String(currentVersion)
+        )
       }
-    });
+    })
 
-    const pending = migrations.filter((m) => m.version > currentVersion);
-    executeMigrationTransaction(pending);
+    const pending = migrations.filter((m) => m.version > currentVersion)
+    executeMigrationTransaction(pending)
   }
 }

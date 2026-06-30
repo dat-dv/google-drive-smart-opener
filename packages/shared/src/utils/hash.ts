@@ -1,5 +1,5 @@
-import * as fs from 'fs';
-import * as crypto from 'crypto';
+import * as fs from 'fs'
+import * as crypto from 'crypto'
 
 /**
  * Computes the MD5 checksum of a file.
@@ -8,19 +8,19 @@ import * as crypto from 'crypto';
  */
 export async function calculateFileMd5(filePath: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const hash = crypto.createHash('md5');
-    const stream = fs.createReadStream(filePath);
-    
+    const hash = crypto.createHash('md5')
+    const stream = fs.createReadStream(filePath)
+
     stream.on('data', (chunk) => {
-      hash.update(chunk);
-    });
-    
+      hash.update(chunk)
+    })
+
     stream.on('end', () => {
-      resolve(hash.digest('hex'));
-    });
-    
+      resolve(hash.digest('hex'))
+    })
+
     stream.on('error', (error) => {
-      reject(error);
-    });
-  });
+      reject(error)
+    })
+  })
 }

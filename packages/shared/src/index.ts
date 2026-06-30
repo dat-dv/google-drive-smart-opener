@@ -1,2 +1,2 @@
-export * from './types';
-export * from './utils/hash';
+export * from './types'
+export * from './utils/hash'

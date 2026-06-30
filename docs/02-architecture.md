@@ -34,15 +34,16 @@ trong (domain ở trung tâm, không phụ thuộc framework).
 
 ```ts
 interface CloudProvider {
-  search(query: SearchQuery): Promise<Document[]>;
-  import(file: string): Promise<Document>;
-  open(documentId: string): Promise<void>;
-  move(documentId: string, folder: string): Promise<void>;
-  watch(): Promise<void>;
+  search(query: SearchQuery): Promise<Document[]>
+  import(file: string): Promise<Document>
+  open(documentId: string): Promise<void>
+  move(documentId: string, folder: string): Promise<void>
+  watch(): Promise<void>
 }
 ```
 
 Implementations:
+
 - `GoogleDriveProvider` (giai đoạn 1 — duy nhất cần implement ngay)
 - `DropboxProvider` (tương lai)
 - `OneDriveProvider` (tương lai)
@@ -55,12 +56,12 @@ Toàn bộ Document Service / Use Cases chỉ phụ thuộc vào interface
 
 ```ts
 interface FolderMapping {
-  id: string;          // UUID
-  localFolderPath: string;
-  driveFolderPath: string;
-  status: 'ACTIVE' | 'DRIVE_DELETED' | 'LOCAL_MISSING' | 'UNLINKED';
-  createdAt: string;
-  updatedAt: string;
+  id: string // UUID
+  localFolderPath: string
+  driveFolderPath: string
+  status: 'ACTIVE' | 'DRIVE_DELETED' | 'LOCAL_MISSING' | 'UNLINKED'
+  createdAt: string
+  updatedAt: string
 }
 ```
 

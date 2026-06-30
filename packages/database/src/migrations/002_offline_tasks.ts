@@ -14,4 +14,4 @@ export const offlineTasksMigration = {
     DROP INDEX IF EXISTS idx_offline_tasks_status;
     DROP TABLE IF EXISTS offline_tasks;
   `
-};
+}

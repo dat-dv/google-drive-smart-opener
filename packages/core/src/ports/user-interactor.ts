@@ -37,8 +37,5 @@ export interface UserInteractor {
   /**
    * Prompts the user with 6 resolution options when a file conflict is detected (R9).
    */
-  promptConflict(
-    localPath: string,
-    document: Document
-  ): Promise<ConflictResolutionChoice>
+  promptConflict(localPath: string, document: Document): Promise<ConflictResolutionChoice>
 }

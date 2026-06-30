@@ -31,7 +31,7 @@ export class DriveWatcher {
    * Initializes and starts watching all active folder mappings stored in the DB.
    */
   public async start(): Promise<void> {
-    const mappings = await this.mappingRepo.findAll();
+    const mappings = await this.mappingRepo.list();
     for (const mapping of mappings) {
       await this.watchMapping(mapping);
     }
@@ -118,9 +118,9 @@ export class DriveWatcher {
       }
 
       // Check for rename/move: find a doc with the same hash that is marked DRIVE_DELETED
-      const allDocs = await this.docRepo.findAll();
-      const movedDoc = allDocs.find(
-        (doc) => doc.driveHash === hash && doc.status === 'DRIVE_DELETED'
+      const matchingDocs = await this.docRepo.findByDriveHash(hash);
+      const movedDoc = matchingDocs.find(
+        (doc) => doc.status === 'DRIVE_DELETED'
       );
 
       if (movedDoc) {

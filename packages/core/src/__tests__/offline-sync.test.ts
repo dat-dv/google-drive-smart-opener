@@ -69,7 +69,7 @@ describe('M9 Offline Cache & Sync Integration', () => {
       scanFolder: vi.fn(),
       resolveLocalPath: vi.fn((p) => `/mock/drive/${p}`),
       getDriveRootPath: vi.fn(() => '/mock/drive'),
-      importFile: vi.fn(async (local, target) => ({
+      importFile: vi.fn(async (local, _target) => ({
         id: 'real-drive-id',
         drivePath: 'My Drive/Other/report.docx',
         localOriginalPath: local,
@@ -80,7 +80,7 @@ describe('M9 Offline Cache & Sync Integration', () => {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         lastOpened: null,
-        status: 'LINKED',
+        status: 'LINKED' as const,
         metadata: { size: 1024, provider: 'google-drive' },
         folderMappingId: null,
       })),

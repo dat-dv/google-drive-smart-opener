@@ -23,6 +23,7 @@ function App(): React.JSX.Element {
   const [showAddModal, setShowAddModal] = useState(false)
   const [localPathInput, setLocalPathInput] = useState('')
   const [drivePathInput, setDrivePathInput] = useState('')
+  const [isOnline, setIsOnline] = useState(navigator.onLine)
 
   // Modal Prompts from Main Process
   const [singlePrompt, setSinglePrompt] = useState<{
@@ -57,6 +58,22 @@ function App(): React.JSX.Element {
   useEffect(() => {
     loadMappings()
 
+    // Notify main process about initial network status
+    window.electron.ipcRenderer.send('network-status:changed', navigator.onLine)
+
+    const handleOnline = (): void => {
+      setIsOnline(true)
+      window.electron.ipcRenderer.send('network-status:changed', true)
+    }
+
+    const handleOffline = (): void => {
+      setIsOnline(false)
+      window.electron.ipcRenderer.send('network-status:changed', false)
+    }
+
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+
     // Listeners for Interactive Interactor flows
     const unsubSingle = window.electron.ipcRenderer.on(
       'prompt-single-candidate',
@@ -83,6 +100,8 @@ function App(): React.JSX.Element {
     )
 
     return (): void => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
       if (typeof unsubSingle === 'function') unsubSingle()
       if (typeof unsubMultiple === 'function') unsubMultiple()
       if (typeof unsubConflict === 'function') unsubConflict()
@@ -191,10 +210,17 @@ function App(): React.JSX.Element {
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 text-emerald-400 text-xs font-semibold uppercase tracking-wider">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]"></span>
-            Sync Active
-          </div>
+          {isOnline ? (
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 text-emerald-400 text-xs font-semibold uppercase tracking-wider">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]"></span>
+              Sync Active
+            </div>
+          ) : (
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 text-amber-400 text-xs font-semibold uppercase tracking-wider">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shadow-[0_0_8px_#fbbf24]"></span>
+              Offline Mode
+            </div>
+          )}
           <button
             className="px-5 py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-400 hover:to-indigo-500 text-white text-sm font-semibold shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/35 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
             onClick={(): void => setShowAddModal(true)}

@@ -6,13 +6,14 @@ import * as fs from 'fs'
 import * as os from 'os'
 import * as crypto from 'crypto'
 
-import { DatabaseManager, SQLiteDocumentRepository, SQLiteFolderMappingRepository } from '@database'
+import { DatabaseManager, SQLiteDocumentRepository, SQLiteFolderMappingRepository, SQLiteOfflineTaskRepository } from '@database'
 import {
   GoogleDriveProvider,
   OpenDocumentUseCase,
   DriveWatcher,
   ConflictResolutionChoice,
-  UserInteractor
+  UserInteractor,
+  OfflineSyncService
 } from '@core'
 import { Document } from '@shared'
 
@@ -20,10 +21,12 @@ let mainWindow: BrowserWindow | null = null
 let dbManager: DatabaseManager
 let docRepo: SQLiteDocumentRepository
 let mappingRepo: SQLiteFolderMappingRepository
+let taskRepo: SQLiteOfflineTaskRepository
 let driveProvider: GoogleDriveProvider
 let openDocumentUseCase: OpenDocumentUseCase
 let watcher: DriveWatcher
 let interactor: ElectronUserInteractor
+let offlineSyncService: OfflineSyncService
 
 const fileQueue: string[] = []
 
@@ -181,16 +184,27 @@ app.whenReady().then(async () => {
 
   docRepo = new SQLiteDocumentRepository(() => dbManager.getDatabase())
   mappingRepo = new SQLiteFolderMappingRepository(() => dbManager.getDatabase())
+  taskRepo = new SQLiteOfflineTaskRepository(() => dbManager.getDatabase())
 
   const driveRoot = getGoogleDriveRoot()
   driveProvider = new GoogleDriveProvider(driveRoot)
   interactor = new ElectronUserInteractor()
 
-  openDocumentUseCase = new OpenDocumentUseCase(docRepo, driveProvider, interactor)
+  openDocumentUseCase = new OpenDocumentUseCase(docRepo, driveProvider, interactor, taskRepo)
+  offlineSyncService = new OfflineSyncService(taskRepo, docRepo, driveProvider)
 
   // Start Realtime Drive Watcher (M5)
   watcher = new DriveWatcher(docRepo, mappingRepo, driveProvider)
   await watcher.start()
+
+  // Register network status event listener
+  ipcMain.on('network-status:changed', async (_, online: boolean) => {
+    openDocumentUseCase.setOnlineStatus(online)
+    if (online) {
+      console.log('[OfflineSync] Online status detected. Running synchronization worker...')
+      await offlineSyncService.sync()
+    }
+  })
 
   // Register Mapping Service IPC Handlers (M8)
   ipcMain.handle('mappings:list', async () => {

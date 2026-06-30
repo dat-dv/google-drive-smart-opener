@@ -29,14 +29,14 @@ export class OfflineSyncService {
     this.isSyncing = true;
 
     try {
-      const pendingTasks = await this.taskRepo.listPending();
+      const pendingTasks: OfflineTask[] = await this.taskRepo.listPending();
       for (const task of pendingTasks) {
         try {
           if (task.type === 'IMPORT_FILE') {
             const { localFilePath, targetDriveFolder, documentId } = JSON.parse(task.payload);
             
             // Execute import file into Cloud Drive mirror
-            const doc = await this.cloudProvider.importFile(localFilePath, targetDriveFolder);
+            const doc: Document = await this.cloudProvider.importFile(localFilePath, targetDriveFolder);
 
             // Update the existing placeholder document in SQLite index
             const placeholder = await this.docRepo.findById(documentId);

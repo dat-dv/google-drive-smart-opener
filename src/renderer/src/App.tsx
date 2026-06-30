@@ -192,7 +192,36 @@ function App(): React.JSX.Element {
                 </svg>
               </div>
             ) : (
-              <div className="flex items-center gap-2 shrink-0 pl-5">{fileIcon(node.name)}</div>
+              <div className="flex items-center gap-2 shrink-0 pl-5">
+                {node.document?.localOriginalPath && (
+                  <button
+                    onClick={(e): void => {
+                      e.stopPropagation()
+                      window.electron.ipcRenderer.invoke(
+                        'dialog:show-in-folder',
+                        node.document!.localOriginalPath
+                      )
+                    }}
+                    className="p-1 rounded hover:bg-slate-700/50 text-slate-400 hover:text-amber-400 transition-all duration-150 shrink-0"
+                    title="Open containing folder"
+                  >
+                    <svg
+                      className="w-3.5 h-3.5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+                      />
+                    </svg>
+                  </button>
+                )}
+                {fileIcon(node.name)}
+              </div>
             )}
             <span
               className={`text-sm truncate ${node.type === 'directory' ? 'font-bold text-slate-300' : 'text-slate-200 font-mono text-xs'}`}
@@ -680,12 +709,42 @@ function App(): React.JSX.Element {
                         <span className="text-[10px] text-slate-500 font-mono">ID: {doc.id}</span>
                       </div>
                       <div className="flex flex-col gap-1 text-xs font-mono text-slate-300 break-all">
-                        <div>
-                          <strong className="text-slate-500">Local original:</strong>{' '}
-                          {doc.localOriginalPath}
+                        <div className="flex items-start justify-between gap-3 group/path">
+                          <div className="min-w-0 flex-1">
+                            <strong className="text-slate-500">Local original:</strong>{' '}
+                            {doc.localOriginalPath}
+                          </div>
+                          {doc.localOriginalPath && (
+                            <button
+                              onClick={(): void => {
+                                window.electron.ipcRenderer.invoke(
+                                  'dialog:show-in-folder',
+                                  doc.localOriginalPath
+                                )
+                              }}
+                              className="p-1 rounded bg-white/5 hover:bg-white/10 text-slate-400 hover:text-amber-400 transition-all duration-150 shrink-0"
+                              title="Open containing folder"
+                            >
+                              <svg
+                                className="w-3 h-3"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+                                />
+                              </svg>
+                            </button>
+                          )}
                         </div>
-                        <div>
-                          <strong className="text-slate-500">Drive mirror:</strong> {doc.drivePath}
+                        <div className="flex items-start justify-between gap-3 group/path">
+                          <div className="min-w-0 flex-1">
+                            <strong className="text-slate-500">Drive mirror:</strong> {doc.drivePath}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -714,13 +773,67 @@ function App(): React.JSX.Element {
               <p className="text-sm text-slate-400 leading-relaxed">
                 A matching Google Drive document was found for your local file:
               </p>
-              <div className="flex flex-col gap-2 p-4 rounded-xl border border-white/5 bg-slate-950/30 text-xs font-mono break-all text-slate-300">
-                <div>
-                  <strong className="text-slate-500">Local:</strong> {singlePrompt.localPath}
+              <div className="flex flex-col gap-2.5 p-4 rounded-xl border border-white/5 bg-slate-950/30 text-xs font-mono break-all text-slate-300">
+                <div className="flex items-start justify-between gap-3 group">
+                  <div className="min-w-0 flex-1">
+                    <strong className="text-slate-500">Local:</strong> {singlePrompt.localPath}
+                  </div>
+                  <button
+                    onClick={(): void => {
+                      window.electron.ipcRenderer.invoke(
+                        'dialog:show-in-folder',
+                        singlePrompt.localPath
+                      )
+                    }}
+                    className="p-1 rounded bg-white/5 hover:bg-white/10 text-slate-400 hover:text-amber-400 transition-all duration-150 shrink-0"
+                    title="Open containing folder"
+                  >
+                    <svg
+                      className="w-3.5 h-3.5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+                      />
+                    </svg>
+                  </button>
                 </div>
-                <div>
-                  <strong className="text-slate-500">Drive:</strong>{' '}
-                  {singlePrompt.candidate.drivePath}
+                <div className="flex items-start justify-between gap-3 group">
+                  <div className="min-w-0 flex-1">
+                    <strong className="text-slate-500">Drive:</strong>{' '}
+                    {singlePrompt.candidate.drivePath}
+                  </div>
+                  {singlePrompt.candidate.localOriginalPath && (
+                    <button
+                      onClick={(): void => {
+                        window.electron.ipcRenderer.invoke(
+                          'dialog:show-in-folder',
+                          singlePrompt.candidate.localOriginalPath
+                        )
+                      }}
+                      className="p-1 rounded bg-white/5 hover:bg-white/10 text-slate-400 hover:text-amber-400 transition-all duration-150 shrink-0"
+                      title="Open containing folder"
+                    >
+                      <svg
+                        className="w-3.5 h-3.5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+                        />
+                      </svg>
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -756,6 +869,35 @@ function App(): React.JSX.Element {
               <h2 className="text-lg font-bold text-white">Select Drive Document</h2>
             </div>
             <div className="p-6 flex flex-col gap-4">
+              <div className="flex items-center justify-between gap-3 p-4 rounded-xl border border-white/5 bg-slate-950/30 text-xs font-mono break-all text-slate-300">
+                <div className="min-w-0 flex-1">
+                  <strong className="text-slate-500">Local:</strong> {multiplePrompt.localPath}
+                </div>
+                <button
+                  onClick={(): void => {
+                    window.electron.ipcRenderer.invoke(
+                      'dialog:show-in-folder',
+                      multiplePrompt.localPath
+                    )
+                  }}
+                  className="p-1 rounded bg-white/5 hover:bg-white/10 text-slate-400 hover:text-amber-400 transition-all duration-150 shrink-0"
+                  title="Open containing folder"
+                >
+                  <svg
+                    className="w-3.5 h-3.5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+                    />
+                  </svg>
+                </button>
+              </div>
               <p className="text-sm text-slate-400 leading-relaxed">
                 Multiple matches found in Google Drive. Select which document to link:
               </p>
@@ -770,10 +912,39 @@ function App(): React.JSX.Element {
                     }`}
                     onClick={(): void => setSelectedCandidateId(c.id)}
                   >
-                    <span className="text-xs font-medium font-mono truncate mr-4">
-                      {c.drivePath}
-                    </span>
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-slate-950/40 text-slate-500 uppercase tracking-wider font-semibold">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      {c.localOriginalPath && (
+                        <button
+                          onClick={(e): void => {
+                            e.stopPropagation()
+                            window.electron.ipcRenderer.invoke(
+                              'dialog:show-in-folder',
+                              c.localOriginalPath
+                            )
+                          }}
+                          className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-amber-400 transition-all duration-150 shrink-0"
+                          title="Open containing folder"
+                        >
+                          <svg
+                            className="w-3.5 h-3.5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+                            />
+                          </svg>
+                        </button>
+                      )}
+                      <span className="text-xs font-medium font-mono truncate">
+                        {c.drivePath}
+                      </span>
+                    </div>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-slate-950/40 text-slate-500 uppercase tracking-wider font-semibold shrink-0 ml-2">
                       {c.status}
                     </span>
                   </div>
@@ -813,6 +984,69 @@ function App(): React.JSX.Element {
               <h2 className="text-lg font-bold text-white">Synchronization Conflict Detected</h2>
             </div>
             <div className="p-6 flex flex-col gap-4">
+              <div className="flex flex-col gap-2.5 p-4 rounded-xl border border-white/5 bg-slate-950/30 text-xs font-mono break-all text-slate-300">
+                <div className="flex items-start justify-between gap-3 group">
+                  <div className="min-w-0 flex-1">
+                    <strong className="text-slate-500">Local:</strong> {conflictPrompt.localPath}
+                  </div>
+                  <button
+                    onClick={(): void => {
+                      window.electron.ipcRenderer.invoke(
+                        'dialog:show-in-folder',
+                        conflictPrompt.localPath
+                      )
+                    }}
+                    className="p-1 rounded bg-white/5 hover:bg-white/10 text-slate-400 hover:text-amber-400 transition-all duration-150 shrink-0"
+                    title="Open containing folder"
+                  >
+                    <svg
+                      className="w-3.5 h-3.5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+                      />
+                    </svg>
+                  </button>
+                </div>
+                <div className="flex items-start justify-between gap-3 group">
+                  <div className="min-w-0 flex-1">
+                    <strong className="text-slate-500">Drive:</strong>{' '}
+                    {conflictPrompt.document.drivePath}
+                  </div>
+                  {conflictPrompt.document.localOriginalPath && (
+                    <button
+                      onClick={(): void => {
+                        window.electron.ipcRenderer.invoke(
+                          'dialog:show-in-folder',
+                          conflictPrompt.document.localOriginalPath
+                        )
+                      }}
+                      className="p-1 rounded bg-white/5 hover:bg-white/10 text-slate-400 hover:text-amber-400 transition-all duration-150 shrink-0"
+                      title="Open containing folder"
+                    >
+                      <svg
+                        className="w-3.5 h-3.5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+                        />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              </div>
               <p className="text-sm text-slate-400 leading-relaxed">
                 Both local and Drive copies have been modified independently. Select a resolution
                 strategy:

@@ -447,6 +447,27 @@ app.whenReady().then(async () => {
     }
   })
 
+  ipcMain.handle('dialog:show-in-folder', async (_, filePath) => {
+    logToFile(`dialog:show-in-folder called with: ${filePath}`)
+    if (filePath) {
+      try {
+        if (fs.existsSync(filePath)) {
+          shell.showItemInFolder(filePath)
+          return true
+        } else {
+          const parentDir = join(filePath, '..')
+          if (fs.existsSync(parentDir)) {
+            await shell.openPath(parentDir)
+            return true
+          }
+        }
+      } catch (err) {
+        logToFile(`Error showing in folder: ${err}`)
+      }
+    }
+    return false
+  })
+
   // Register Document & Conflict Center IPC Handlers (M10)
   ipcMain.handle('documents:list-conflicts', async () => {
     const list = await docRepo.list()

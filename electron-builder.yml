@@ -1,5 +1,24 @@
 appId: com.electron.app
 productName: google-drive-smart-opener
+fileAssociations:
+  - ext: docx
+    name: Microsoft Word Document
+    role: Editor
+  - ext: xlsx
+    name: Microsoft Excel Spreadsheet
+    role: Editor
+  - ext: pptx
+    name: Microsoft PowerPoint Presentation
+    role: Editor
+  - ext: pdf
+    name: PDF Document
+    role: Viewer
+  - ext: txt
+    name: Text Document
+    role: Editor
+  - ext: md
+    name: Markdown Document
+    role: Editor
 directories:
   buildResources: build
 files:

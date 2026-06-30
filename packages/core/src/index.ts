@@ -2,4 +2,5 @@ export * from './ports/repositories';
 export * from './ports/cloud-provider';
 export * from './ports/user-interactor';
 export * from './services/google-drive-provider';
+export * from './services/drive-watcher';
 export * from './usecases/open-document';

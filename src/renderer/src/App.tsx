@@ -125,6 +125,13 @@ function App(): React.JSX.Element {
           </span>
         )
       }
+      if (['pptx', 'ppt'].includes(ext)) {
+        return (
+          <span className="p-1 bg-orange-500/10 text-orange-400 rounded border border-orange-500/20 text-[10px] font-bold shrink-0">
+            PPT
+          </span>
+        )
+      }
       if (ext === 'pdf') {
         return (
           <span className="p-1 bg-red-500/10 text-red-400 rounded border border-red-500/20 text-[10px] font-bold shrink-0">

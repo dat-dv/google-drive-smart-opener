@@ -208,10 +208,16 @@ export class DriveWatcher {
         return 'application/pdf'
       case '.docx':
         return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      case '.doc':
+        return 'application/msword'
       case '.xlsx':
         return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      case '.xls':
+        return 'application/vnd.ms-excel'
       case '.pptx':
         return 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+      case '.ppt':
+        return 'application/vnd.ms-powerpoint'
       case '.png':
         return 'image/png'
       case '.jpg':

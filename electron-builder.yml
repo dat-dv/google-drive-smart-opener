@@ -4,11 +4,20 @@ fileAssociations:
   - ext: docx
     name: Microsoft Word Document
     role: Editor
+  - ext: doc
+    name: Microsoft Word Document (Legacy)
+    role: Editor
   - ext: xlsx
     name: Microsoft Excel Spreadsheet
     role: Editor
+  - ext: xls
+    name: Microsoft Excel Spreadsheet (Legacy)
+    role: Editor
   - ext: pptx
     name: Microsoft PowerPoint Presentation
+    role: Editor
+  - ext: ppt
+    name: Microsoft PowerPoint Presentation (Legacy)
     role: Editor
   - ext: pdf
     name: PDF Document

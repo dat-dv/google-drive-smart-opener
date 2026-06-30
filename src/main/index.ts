@@ -442,7 +442,7 @@ app.whenReady().then(async () => {
       properties: ['openFile'],
       title: 'Select a file to open via Google Drive Smart Opener',
       filters: [
-        { name: 'Documents', extensions: ['docx', 'xlsx', 'pptx', 'pdf', 'txt', 'md'] },
+        { name: 'Documents', extensions: ['docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'pdf', 'txt', 'md'] },
         { name: 'All Files', extensions: ['*'] }
       ]
     })

@@ -19,6 +19,39 @@ export type OpenWorkflowResult =
  * Intercepts local path requests, resolves existing matches, prompts user
  * when database misses require candidate linking, and manages conflict resolution.
  */
+function guessMimeType(filename: string): string {
+  const ext = path.extname(filename).toLowerCase()
+  switch (ext) {
+    case '.txt':
+      return 'text/plain'
+    case '.html':
+      return 'text/html'
+    case '.pdf':
+      return 'application/pdf'
+    case '.docx':
+      return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    case '.doc':
+      return 'application/msword'
+    case '.xlsx':
+      return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    case '.xls':
+      return 'application/vnd.ms-excel'
+    case '.pptx':
+      return 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+    case '.ppt':
+      return 'application/vnd.ms-powerpoint'
+    case '.png':
+      return 'image/png'
+    case '.jpg':
+    case '.jpeg':
+      return 'image/jpeg'
+    case '.json':
+      return 'application/json'
+    default:
+      return 'application/octet-stream'
+  }
+}
+
 export class OpenDocumentUseCase {
   private readonly docRepo: DocumentRepository
   private readonly cloudProvider: CloudProvider
@@ -123,9 +156,7 @@ export class OpenDocumentUseCase {
         status: 'UNLINKED',
         metadata: {
           size: stats.size,
-          mimeType: filename.endsWith('.docx')
-            ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-            : 'text/plain',
+          mimeType: guessMimeType(filename),
           provider: 'google-drive',
           offlinePending: true
         },

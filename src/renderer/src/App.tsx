@@ -383,6 +383,21 @@ function App(): React.JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const handleClearCache = async (): Promise<void> => {
+    const confirmClear = confirm(
+      'Are you sure you want to clear all cache and reset settings? This will restart configuration from scratch.'
+    )
+    if (!confirmClear) return
+    try {
+      await window.electron.ipcRenderer.invoke('settings:clear-cache')
+      alert('Cache cleared successfully!')
+      loadDriveRootInfo()
+      reloadAllData()
+    } catch (err) {
+      alert(`Error clearing cache: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+
   const handleBrowseSetupPath = async (): Promise<void> => {
     try {
       const selected = await window.electron.ipcRenderer.invoke('dialog:select-folder')
@@ -569,12 +584,20 @@ function App(): React.JSX.Element {
               </span>
             </div>
           </div>
-          <button
-            onClick={(): void => setShowSetupModal(true)}
-            className="px-4 py-2 ml-4 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 text-xs font-bold text-indigo-400 hover:text-indigo-300 transition-all duration-200"
-          >
-            Change Path
-          </button>
+          <div className="flex gap-2 ml-4">
+            <button
+              onClick={(): void => setShowSetupModal(true)}
+              className="px-4 py-2 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 text-xs font-bold text-indigo-400 hover:text-indigo-300 transition-all duration-200"
+            >
+              Change Path
+            </button>
+            <button
+              onClick={handleClearCache}
+              className="px-4 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-xs font-bold text-red-400 hover:text-red-300 transition-all duration-200"
+            >
+              Clear Cache
+            </button>
+          </div>
         </div>
       )}
 

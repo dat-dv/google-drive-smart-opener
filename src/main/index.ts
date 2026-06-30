@@ -399,6 +399,24 @@ app.whenReady().then(async () => {
     return true
   })
 
+  ipcMain.handle('settings:clear-cache', async () => {
+    logToFile('settings:clear-cache called')
+    try {
+      if (watcher) {
+        await watcher.stop()
+      }
+      const db = dbManager.getDatabase()
+      db.prepare("DELETE FROM meta WHERE key = 'google_drive_root'").run()
+      db.prepare('DELETE FROM documents').run()
+      db.prepare('DELETE FROM offline_tasks').run()
+      logToFile('Cache and configurations cleared successfully')
+      return true
+    } catch (err) {
+      logToFile(`Failed to clear cache: ${err}`)
+      throw err
+    }
+  })
+
   ipcMain.handle('dialog:select-folder', async () => {
     if (!mainWindow) return null
     const result = dialog.showOpenDialogSync(mainWindow, {

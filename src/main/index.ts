@@ -243,6 +243,26 @@ app.whenReady().then(async () => {
     return result ? result[0] : null
   })
 
+  // Register Document & Conflict Center IPC Handlers (M10)
+  ipcMain.handle('documents:list-conflicts', async () => {
+    const list = await docRepo.list()
+    return list.filter((d) => d.status === 'CONFLICT')
+  })
+
+  ipcMain.handle('documents:list-all', async () => {
+    return docRepo.list()
+  })
+
+  ipcMain.handle('documents:resolve-conflict-manual', async (_, docId) => {
+    const doc = await docRepo.findById(docId)
+    if (doc && doc.localOriginalPath) {
+      // Execute in background so IPC call resolves immediately, letting modal pop up via interactor
+      openDocumentUseCase.resolveConflict(doc.localOriginalPath, doc)
+      return true
+    }
+    return false
+  })
+
   createWindow()
 
   app.on('activate', function () {

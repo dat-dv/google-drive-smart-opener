@@ -16,10 +16,20 @@ interface Document {
   driveHash: string | null
   localHash: string | null
   status: string
+  lastOpened: string | null
+  metadata: {
+    size?: number
+    mimeType?: string
+    provider?: string
+    offlinePending?: boolean
+  }
 }
 
 function App(): React.JSX.Element {
+  const [activeTab, setActiveTab] = useState<'mappings' | 'documents' | 'conflicts'>('mappings')
   const [mappings, setMappings] = useState<FolderMapping[]>([])
+  const [conflicts, setConflicts] = useState<Document[]>([])
+  const [allDocs, setAllDocs] = useState<Document[]>([])
   const [showAddModal, setShowAddModal] = useState(false)
   const [localPathInput, setLocalPathInput] = useState('')
   const [drivePathInput, setDrivePathInput] = useState('')
@@ -45,7 +55,7 @@ function App(): React.JSX.Element {
     document: Document
   } | null>(null)
 
-  // Fetch all mappings from DB
+  // Load Folder Mappings
   const loadMappings = async (): Promise<void> => {
     try {
       const list = await window.electron.ipcRenderer.invoke('mappings:list')
@@ -55,8 +65,34 @@ function App(): React.JSX.Element {
     }
   }
 
-  useEffect(() => {
+  // Load Conflicting Documents
+  const loadConflicts = async (): Promise<void> => {
+    try {
+      const list = await window.electron.ipcRenderer.invoke('documents:list-conflicts')
+      setConflicts(list || [])
+    } catch (err) {
+      console.error('Failed to load conflicts:', err)
+    }
+  }
+
+  // Load All Document Connections
+  const loadAllDocs = async (): Promise<void> => {
+    try {
+      const list = await window.electron.ipcRenderer.invoke('documents:list-all')
+      setAllDocs(list || [])
+    } catch (err) {
+      console.error('Failed to load all docs:', err)
+    }
+  }
+
+  const reloadAllData = (): void => {
     loadMappings()
+    loadConflicts()
+    loadAllDocs()
+  }
+
+  useEffect(() => {
+    reloadAllData()
 
     // Notify main process about initial network status
     window.electron.ipcRenderer.send('network-status:changed', navigator.onLine)
@@ -64,6 +100,7 @@ function App(): React.JSX.Element {
     const handleOnline = (): void => {
       setIsOnline(true)
       window.electron.ipcRenderer.send('network-status:changed', true)
+      setTimeout(reloadAllData, 1000)
     }
 
     const handleOffline = (): void => {
@@ -130,7 +167,7 @@ function App(): React.JSX.Element {
       setShowAddModal(false)
       setLocalPathInput('')
       setDrivePathInput('')
-      await loadMappings()
+      reloadAllData()
     } catch (err) {
       console.error(err)
     }
@@ -140,7 +177,7 @@ function App(): React.JSX.Element {
   const handleDeleteMapping = async (id: string): Promise<void> => {
     try {
       await window.electron.ipcRenderer.invoke('mappings:delete', id)
-      await loadMappings()
+      reloadAllData()
     } catch (err) {
       console.error(err)
     }
@@ -151,6 +188,7 @@ function App(): React.JSX.Element {
     if (!singlePrompt) return
     window.electron.ipcRenderer.send(`prompt-single-candidate-response-${singlePrompt.id}`, action)
     setSinglePrompt(null)
+    setTimeout(reloadAllData, 500)
   }
 
   // Resolve Multiple Candidates Prompt
@@ -171,6 +209,7 @@ function App(): React.JSX.Element {
     }
     setMultiplePrompt(null)
     setSelectedCandidateId(null)
+    setTimeout(reloadAllData, 500)
   }
 
   // Resolve Conflict Prompt
@@ -187,6 +226,16 @@ function App(): React.JSX.Element {
     if (!conflictPrompt) return
     window.electron.ipcRenderer.send(`prompt-conflict-response-${conflictPrompt.id}`, choice)
     setConflictPrompt(null)
+    setTimeout(reloadAllData, 500)
+  }
+
+  // Trigger manual conflict resolution popup
+  const handleResolveConflictManual = async (docId: string): Promise<void> => {
+    try {
+      await window.electron.ipcRenderer.invoke('documents:resolve-conflict-manual', docId)
+    } catch (err) {
+      console.error(err)
+    }
   }
 
   return (
@@ -230,55 +279,210 @@ function App(): React.JSX.Element {
         </div>
       </header>
 
-      {/* Main Section */}
+      {/* Tabs Menu */}
+      <div className="flex border-b border-white/5 gap-2">
+        <button
+          onClick={(): void => setActiveTab('mappings')}
+          className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all ${
+            activeTab === 'mappings'
+              ? 'border-indigo-500 text-white'
+              : 'border-transparent text-slate-400 hover:text-white'
+          }`}
+        >
+          Folder Mappings ({mappings.length})
+        </button>
+        <button
+          onClick={(): void => setActiveTab('documents')}
+          className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all ${
+            activeTab === 'documents'
+              ? 'border-indigo-500 text-white'
+              : 'border-transparent text-slate-400 hover:text-white'
+          }`}
+        >
+          Document Connections ({allDocs.length})
+        </button>
+        <button
+          onClick={(): void => setActiveTab('conflicts')}
+          className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 ${
+            activeTab === 'conflicts'
+              ? 'border-indigo-500 text-white'
+              : 'border-transparent text-slate-400 hover:text-white'
+          }`}
+        >
+          Conflict Center
+          {conflicts.length > 0 && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500 text-white animate-pulse">
+              {conflicts.length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* Main Content Areas */}
       <main className="flex flex-col gap-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400">
-          Active Folder Mappings
-        </h2>
-        {mappings.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 px-4 rounded-2xl border border-dashed border-white/5 bg-slate-900/10 text-center gap-4">
-            <div className="text-4xl">📁</div>
-            <p className="text-sm text-slate-500 max-w-xs">
-              No active mappings found. Click "Add Mapping" to establish a connection folder.
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-4">
-            {mappings.map((mapping) => (
-              <div
-                key={mapping.id}
-                className="flex items-center justify-between p-5 rounded-2xl border border-white/5 bg-slate-900/25 hover:bg-slate-900/40 hover:border-indigo-500/20 transition-all duration-300 group"
-              >
-                <div className="flex items-center gap-6 flex-1 min-w-0">
-                  <div className="flex flex-col gap-1 min-w-0 flex-1">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                      Local Workspace Path
-                    </span>
-                    <span className="text-sm text-slate-300 truncate font-mono bg-slate-950/20 px-2.5 py-1 rounded-lg border border-white/5">
-                      {mapping.localFolderPath}
-                    </span>
-                  </div>
-                  <div className="text-indigo-400 font-bold self-center pt-4">➔</div>
-                  <div className="flex flex-col gap-1 min-w-0 flex-1">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                      Google Drive Mirror Path
-                    </span>
-                    <span className="text-sm text-slate-300 truncate font-mono bg-slate-950/20 px-2.5 py-1 rounded-lg border border-white/5">
-                      {mapping.driveFolderPath}
-                    </span>
-                  </div>
-                </div>
-                <button
-                  className="p-2 ml-4 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200 opacity-60 group-hover:opacity-100"
-                  title="Remove mapping"
-                  onClick={(): Promise<void> => handleDeleteMapping(mapping.id)}
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
+        {activeTab === 'mappings' && (
+          <div className="flex flex-col gap-4">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400">
+              Active Folder Mappings
+            </h2>
+            {mappings.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 px-4 rounded-2xl border border-dashed border-white/5 bg-slate-900/10 text-center gap-4">
+                <div className="text-4xl">📁</div>
+                <p className="text-sm text-slate-500 max-w-xs">
+                  No active mappings found. Click "Add Mapping" to establish a connection folder.
+                </p>
               </div>
-            ))}
+            ) : (
+              <div className="grid grid-cols-1 gap-4">
+                {mappings.map((mapping) => (
+                  <div
+                    key={mapping.id}
+                    className="flex items-center justify-between p-5 rounded-2xl border border-white/5 bg-slate-900/25 hover:bg-slate-900/40 hover:border-indigo-500/20 transition-all duration-300 group"
+                  >
+                    <div className="flex items-center gap-6 flex-1 min-w-0">
+                      <div className="flex flex-col gap-1 min-w-0 flex-1">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                          Local Workspace Path
+                        </span>
+                        <span className="text-sm text-slate-300 truncate font-mono bg-slate-950/20 px-2.5 py-1 rounded-lg border border-white/5">
+                          {mapping.localFolderPath}
+                        </span>
+                      </div>
+                      <div className="text-indigo-400 font-bold self-center pt-4">➔</div>
+                      <div className="flex flex-col gap-1 min-w-0 flex-1">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                          Google Drive Mirror Path
+                        </span>
+                        <span className="text-sm text-slate-300 truncate font-mono bg-slate-950/20 px-2.5 py-1 rounded-lg border border-white/5">
+                          {mapping.driveFolderPath}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      className="p-2 ml-4 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200 opacity-60 group-hover:opacity-100"
+                      title="Remove mapping"
+                      onClick={(): Promise<void> => handleDeleteMapping(mapping.id)}
+                    >
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'documents' && (
+          <div className="flex flex-col gap-4">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400">
+              Linked Documents Index
+            </h2>
+            {allDocs.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 px-4 rounded-2xl border border-dashed border-white/5 bg-slate-900/10 text-center gap-4">
+                <div className="text-4xl">📄</div>
+                <p className="text-sm text-slate-500 max-w-xs">
+                  No linked documents in index. Open local files inside mapping paths to synchronize them.
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-2xl border border-white/5 bg-slate-900/20 backdrop-blur-xl">
+                <table className="w-full border-collapse text-left text-sm text-slate-300">
+                  <thead className="bg-slate-950/45 text-xs font-semibold uppercase text-slate-400 border-b border-white/5">
+                    <tr>
+                      <th className="px-6 py-4">Drive Path</th>
+                      <th className="px-6 py-4">Local Original Location</th>
+                      <th className="px-6 py-4">Last Opened</th>
+                      <th className="px-6 py-4">Sync Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {allDocs.map((doc) => (
+                      <tr key={doc.id} className="hover:bg-white/2 transition-colors">
+                        <td className="px-6 py-4 font-mono text-xs max-w-xs truncate text-slate-200">
+                          {doc.drivePath}
+                        </td>
+                        <td className="px-6 py-4 font-mono text-xs max-w-xs truncate text-slate-400">
+                          {doc.localOriginalPath || 'N/A'}
+                        </td>
+                        <td className="px-6 py-4 text-xs">
+                          {doc.lastOpened ? new Date(doc.lastOpened).toLocaleString() : 'Never'}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                              doc.status === 'LINKED'
+                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                : doc.status === 'CONFLICT'
+                                ? 'bg-red-500/10 text-red-400 border border-red-500/20'
+                                : doc.status === 'UNLINKED'
+                                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                : 'bg-slate-500/10 text-slate-400 border border-slate-500/20'
+                            }`}
+                          >
+                            {doc.status}
+                            {doc.metadata?.offlinePending && (
+                              <span className="text-[9px] text-amber-500 font-semibold lowercase">
+                                (pending sync)
+                              </span>
+                            )}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'conflicts' && (
+          <div className="flex flex-col gap-4">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400">
+              Active Sync Conflicts
+            </h2>
+            {conflicts.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 px-4 rounded-2xl border border-dashed border-white/5 bg-slate-900/10 text-center gap-4">
+                <div className="text-4xl text-emerald-400">✓</div>
+                <p className="text-sm text-slate-500 max-w-xs">
+                  Zero active conflicts. Everything is healthy and in-sync.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4">
+                {conflicts.map((doc) => (
+                  <div
+                    key={doc.id}
+                    className="flex items-center justify-between p-5 rounded-2xl border border-red-500/10 bg-red-500/5 hover:bg-red-500/10 transition-all group"
+                  >
+                    <div className="flex flex-col gap-2 flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-red-400 uppercase tracking-wider">
+                          Conflict Detected
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-mono">ID: {doc.id}</span>
+                      </div>
+                      <div className="flex flex-col gap-1 text-xs font-mono text-slate-300 break-all">
+                        <div>
+                          <strong className="text-slate-500">Local original:</strong> {doc.localOriginalPath}
+                        </div>
+                        <div>
+                          <strong className="text-slate-500">Drive mirror:</strong> {doc.drivePath}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold shadow-md shadow-red-500/10 transition-all shrink-0 ml-4"
+                      onClick={(): Promise<void> => handleResolveConflictManual(doc.id)}
+                    >
+                      Resolve Conflict
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </main>

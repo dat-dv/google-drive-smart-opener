@@ -194,7 +194,7 @@ export class OpenDocumentUseCase {
   /**
    * Helper to execute 6 strategies of Conflict Resolution (R9).
    */
-  private async resolveConflict(
+  public async resolveConflict(
     localPath: string,
     doc: Document
   ): Promise<OpenWorkflowResult> {

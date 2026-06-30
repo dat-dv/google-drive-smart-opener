@@ -117,17 +117,22 @@ export class GoogleDriveProvider implements CloudProvider {
   }
 
   /**
-   * Opens the file on macOS using the default application association.
+   * Opens the file on macOS.
+   * When useDriveApp is true, delegates to the Google Drive desktop app.
+   * Falls back to the OS default app association for local/offline files.
    */
-  public async openFile(drivePath: string): Promise<void> {
+  public async openFile(drivePath: string, useDriveApp = false): Promise<void> {
     const absolutePath = path.isAbsolute(drivePath) ? drivePath : this.resolveLocalPath(drivePath);
     if (!fs.existsSync(absolutePath)) {
       throw new Error(`File does not exist: ${absolutePath}`);
     }
 
+    const cmd = useDriveApp
+      ? `open -a "Google Drive" "${absolutePath}"`
+      : `open "${absolutePath}"`;
+
     return new Promise((resolve, reject) => {
-      // Execute OS open command. macOS open triggers LaunchServices to open default editor.
-      exec(`open "${absolutePath}"`, (error) => {
+      exec(cmd, (error) => {
         if (error) {
           reject(error);
         } else {

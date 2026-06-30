@@ -56,8 +56,9 @@ export interface CloudProvider {
 
   /**
    * Opens a document using the OS-specific file association.
+   * When useDriveApp is true, opens with the Google Drive desktop application.
    */
-  openFile(drivePath: string): Promise<void>;
+  openFile(drivePath: string, useDriveApp?: boolean): Promise<void>;
 
   /**
    * Moves a cloud document to another folder inside the cloud storage.

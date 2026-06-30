@@ -94,8 +94,8 @@ export class OpenDocumentUseCase {
         return this.resolveConflict(resolvedLocalPath, existingDoc);
       }
 
-      // Normal Hit
-      await this.cloudProvider.openFile(existingDoc.drivePath);
+      // Normal Hit — open via Google Drive desktop app
+      await this.cloudProvider.openFile(existingDoc.drivePath, true);
       existingDoc.lastOpened = new Date().toISOString();
       await this.docRepo.update(existingDoc);
 

@@ -6,7 +6,12 @@ import * as fs from 'fs'
 import * as os from 'os'
 import * as crypto from 'crypto'
 
-import { DatabaseManager, SQLiteDocumentRepository, SQLiteFolderMappingRepository, SQLiteOfflineTaskRepository } from '@database'
+import {
+  DatabaseManager,
+  SQLiteDocumentRepository,
+  SQLiteFolderMappingRepository,
+  SQLiteOfflineTaskRepository
+} from '@database'
 import {
   GoogleDriveProvider,
   OpenDocumentUseCase,
@@ -112,9 +117,14 @@ function getGoogleDriveRoot(): string {
 
 function handleOpenFile(filePath: string): void {
   logToFile(`handleOpenFile triggered for: ${filePath}`)
-  if (!mainWindow) {
-    logToFile(`mainWindow not initialized, queueing file: ${filePath}`)
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    logToFile(
+      `mainWindow not initialized or destroyed, queueing file: ${filePath} and recreating window`
+    )
+    mainWindow = null
+    rendererReady = false
     fileQueue.push(filePath)
+    createWindow()
     return
   }
 
@@ -178,6 +188,12 @@ function createWindow(): void {
     mainWindow!.show()
   })
 
+  mainWindow.on('closed', () => {
+    logToFile('mainWindow closed event fired')
+    mainWindow = null
+    rendererReady = false
+  })
+
   // Flush file queue only after React has fully mounted and registered its IPC listeners.
   // 'renderer-ready' is sent from App.tsx useEffect to signal mount completion.
   ipcMain.once('renderer-ready', () => {
@@ -214,7 +230,9 @@ app.whenReady().then(async () => {
   // Only queue — do NOT process yet, renderer may not be mounted
   const args = process.argv.slice(is.dev ? 2 : 1)
   logToFile(`process.argv: ${JSON.stringify(process.argv)}, parsed args: ${JSON.stringify(args)}`)
-  const fileArg = args.find((arg) => !arg.startsWith('-') && fs.existsSync(arg) && fs.statSync(arg).isFile())
+  const fileArg = args.find(
+    (arg) => !arg.startsWith('-') && fs.existsSync(arg) && fs.statSync(arg).isFile()
+  )
   if (fileArg) {
     logToFile(`Found file argument in argv: ${fileArg}. Queueing.`)
     fileQueue.push(fileArg)
@@ -340,14 +358,25 @@ app.whenReady().then(async () => {
   })
 })
 
-app.on('window-all-closed', async () => {
-  if (watcher) {
-    await watcher.stop()
-  }
-  if (dbManager) {
-    dbManager.disconnect()
-  }
+app.on('window-all-closed', () => {
+  logToFile('window-all-closed event fired')
   if (process.platform !== 'darwin') {
     app.quit()
   }
+})
+
+app.on('will-quit', async (event) => {
+  logToFile('will-quit event fired. Cleaning up...')
+  event.preventDefault()
+  try {
+    if (watcher) {
+      await watcher.stop()
+    }
+    if (dbManager) {
+      dbManager.disconnect()
+    }
+  } catch (err) {
+    logToFile(`Error during will-quit cleanup: ${err}`)
+  }
+  app.exit(0)
 })

@@ -1,5 +1,5 @@
-appId: com.electron.app
-productName: google-drive-smart-opener
+appId: com.datdoan.google-drive-smart-opener
+productName: Google Drive Smart Opener
 fileAssociations:
   - ext: docx
     name: Microsoft Word Document
@@ -54,8 +54,8 @@ linux:
     - AppImage
     - snap
     - deb
-  maintainer: electronjs.org
-  category: Utility
+  maintainer: Dat Doan <datdoan@example.com>
+  category: public.app-category.utilities
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false

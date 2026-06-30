@@ -1,10 +1,10 @@
 {
   "name": "google-drive-smart-opener",
   "version": "1.0.0",
-  "description": "An Electron application with React and TypeScript",
+  "description": "A smart helper utility that automatically opens files, links resources, and handles conflict resolutions for local Google Drive desktop folders.",
   "main": "./out/main/index.js",
-  "author": "example.com",
-  "homepage": "https://electron-vite.org",
+  "author": "Dat Doan",
+  "homepage": "https://github.com/datdoan/google-drive-smart-opener",
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",

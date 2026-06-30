@@ -119,13 +119,15 @@ function handleOpenFile(filePath: string): void {
 }
 
 // Early registration of macOS open-file event (R7)
-let fileToOpenOnStartup: string | null = null
+// Always queue regardless of app.isReady() — actual processing happens only after
+// renderer-ready fires (guarantees React listeners are mounted before prompts appear).
+let rendererReady = false
 app.on('open-file', (event, filePath) => {
   event.preventDefault()
-  if (app.isReady()) {
+  if (rendererReady) {
     handleOpenFile(filePath)
   } else {
-    fileToOpenOnStartup = filePath
+    fileQueue.push(filePath)
   }
 })
 
@@ -151,10 +153,7 @@ function createWindow(): void {
   // Flush file queue only after React has fully mounted and registered its IPC listeners.
   // 'renderer-ready' is sent from App.tsx useEffect to signal mount completion.
   ipcMain.once('renderer-ready', () => {
-    if (fileToOpenOnStartup) {
-      handleOpenFile(fileToOpenOnStartup)
-      fileToOpenOnStartup = null
-    }
+    rendererReady = true
     while (fileQueue.length > 0) {
       const file = fileQueue.shift()
       if (file) handleOpenFile(file)
@@ -181,10 +180,11 @@ app.whenReady().then(async () => {
   })
 
   // Parse process.argv for initial file to open (R7/Testing support)
+  // Only queue — do NOT process yet, renderer may not be mounted
   const args = process.argv.slice(is.dev ? 2 : 1)
   const fileArg = args.find((arg) => !arg.startsWith('-') && fs.existsSync(arg) && fs.statSync(arg).isFile())
   if (fileArg) {
-    fileToOpenOnStartup = fileArg
+    fileQueue.push(fileArg)
   }
 
   // Initialize DB and repositories
@@ -260,6 +260,21 @@ app.whenReady().then(async () => {
       properties: ['openDirectory', 'createDirectory']
     })
     return result ? result[0] : null
+  })
+
+  ipcMain.handle('dialog:open-file', async () => {
+    if (!mainWindow) return
+    const result = dialog.showOpenDialogSync(mainWindow, {
+      properties: ['openFile'],
+      title: 'Select a file to open via Google Drive Smart Opener',
+      filters: [
+        { name: 'Documents', extensions: ['docx', 'xlsx', 'pptx', 'pdf', 'txt', 'md'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    })
+    if (result && result[0]) {
+      handleOpenFile(result[0])
+    }
   })
 
   // Register Document & Conflict Center IPC Handlers (M10)

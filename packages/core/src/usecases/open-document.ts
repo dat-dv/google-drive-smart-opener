@@ -361,7 +361,7 @@ export class OpenDocumentUseCase {
     await this.docRepo.create(importedDoc);
     
     // Open the newly imported file
-    await this.cloudProvider.openFile(importedDoc.drivePath);
+    await this.cloudProvider.openFile(importedDoc.drivePath, true);
     
     // Update lastOpened
     importedDoc.lastOpened = new Date().toISOString();
@@ -387,7 +387,7 @@ export class OpenDocumentUseCase {
       await this.docRepo.create(candidate);
     }
 
-    await this.cloudProvider.openFile(candidate.drivePath);
+    await this.cloudProvider.openFile(candidate.drivePath, true);
 
     return candidate;
   }

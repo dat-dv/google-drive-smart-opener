@@ -17,6 +17,10 @@ trong (domain ở trung tâm, không phụ thuộc framework).
 - **Drive Scanner** — quét đệ quy Google Drive folder (chỉ chạy khi cần).
 - **Drive Watcher** — chokidar watcher cho Drive folder + local path.
 - **Conflict Resolver** — phát hiện & xử lý xung đột theo R9.
+- **Mapping Service** — quản lý `FolderMapping` (CRUD ánh xạ thư mục local
+  ↔ Drive theo R14), đệ quy áp dụng thay đổi cấu trúc thư mục theo chính
+  sách R15, sinh `Document` con khi mapping mới được thêm hoặc folder con
+  được phát hiện qua watcher/scan.
 - **Import Service** — copy file vào `My Drive/Other`, xử lý trùng tên.
 - **Search Engine** — tìm theo filename / checksum / metadata, để ngỏ chỗ
   cho semantic search sau này.
@@ -46,6 +50,27 @@ Implementations:
 
 Toàn bộ Document Service / Use Cases chỉ phụ thuộc vào interface
 `CloudProvider`, không bao giờ import trực tiếp `GoogleDriveProvider`.
+
+## FolderMapping (mapping cấp thư mục)
+
+```ts
+interface FolderMapping {
+  id: string;          // UUID
+  localFolderPath: string;
+  driveFolderPath: string;
+  status: 'ACTIVE' | 'DRIVE_DELETED' | 'LOCAL_MISSING' | 'UNLINKED';
+  createdAt: string;
+  updatedAt: string;
+}
+```
+
+`FolderMapping` là đơn vị mà user thao tác trên Mapping Tree UI (R14).
+Mỗi `Document` (cấp file) thuộc về đúng 1 `FolderMapping` (qua
+`folderMappingId`, xem `docs/03-database.md`). Khi `Mapping Service` phát
+hiện thay đổi cấu trúc thư mục phía Drive, nó áp dụng chính sách "Drive là
+master cho cấu trúc thư mục, local là soft reflection" đã mô tả ở R15:
+cập nhật `drivePath` của toàn bộ `Document`/`FolderMapping` con, nhưng
+không bao giờ tự ý rename/move/delete phía local.
 
 ## Layer dependency rule
 

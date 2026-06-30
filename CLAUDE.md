@@ -44,6 +44,7 @@
 12. Repository
 13. Import Service
 14. Conflict Resolver
-15. UI
-16. Testing
-17. Packaging
+15. Mapping Service + Mapping Tree UI
+16. Settings/Search UI
+17. Testing
+18. Packaging

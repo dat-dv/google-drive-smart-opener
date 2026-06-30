@@ -16,12 +16,36 @@
 | lastOpened        | TEXT      | ISO timestamp                             |
 | status            | TEXT      | LINKED \| LOCAL_DELETED \| DRIVE_DELETED \| CONFLICT |
 | metadata          | TEXT      | JSON blob (size, mimeType, provider, ...) |
+| folderMappingId   | TEXT      | FK → folder_mappings.id (nullable)        |
 
 Indexes đề xuất:
 - `idx_documents_drivePath` (UNIQUE)
 - `idx_documents_localOriginalPath`
 - `idx_documents_driveHash`
 - `idx_documents_status`
+- `idx_documents_folderMappingId`
+
+## Table: folder_mappings
+
+| Column          | Type      | Notes                                       |
+|-----------------|-----------|----------------------------------------------|
+| id              | TEXT (PK) | UUID v4                                       |
+| localFolderPath | TEXT      | Đường dẫn folder local                        |
+| driveFolderPath | TEXT      | Đường dẫn folder trên Google Drive            |
+| status          | TEXT      | ACTIVE \| DRIVE_DELETED \| LOCAL_MISSING \| UNLINKED |
+| createdAt       | TEXT      | ISO timestamp                                 |
+| updatedAt       | TEXT      | ISO timestamp                                 |
+
+Indexes đề xuất:
+- `idx_folder_mappings_localFolderPath` (UNIQUE)
+- `idx_folder_mappings_driveFolderPath`
+- `idx_folder_mappings_status`
+
+Mỗi `Document` thuộc về tối đa 1 `FolderMapping` (qua `folderMappingId`).
+Document được tạo qua case "DATABASE MISS" (không thuộc mapping nào sẵn
+có) sẽ có `folderMappingId = NULL` cho tới khi user gộp nó vào một
+mapping cụ thể từ UI (hoặc app tự gán nếu drivePath nằm trong phạm vi của
+một FolderMapping đã có).
 
 ## Migration strategy
 

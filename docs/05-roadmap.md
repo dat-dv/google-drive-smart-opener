@@ -15,8 +15,11 @@
 7. **M6 — Conflict Resolver**: detect + dialog 6 lựa chọn.
 8. **M7 — OS-level file interception thật** (Launch Services / default
    app registration trên macOS).
-9. **M8 — Settings UI + Search Engine UI**.
-10. **M9 — Packaging**: electron-builder, code signing, notarization.
+9. **M8 — Mapping Service + Mapping Tree UI**: CRUD `FolderMapping`, áp
+   dụng chính sách đồng bộ cấu trúc thư mục (R15), banner cảnh báo trên
+   UI khi Drive folder rename/move/delete.
+10. **M9 — Settings UI + Search Engine UI**.
+11. **M10 — Packaging**: electron-builder, code signing, notarization.
 
 ## Future Roadmap
 

@@ -1,0 +1,3 @@
+provider: generic
+url: https://example.com/auto-updates
+updaterCacheDirName: google-drive-smart-opener-updater

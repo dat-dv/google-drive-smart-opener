@@ -187,7 +187,16 @@ app.whenReady().then(async () => {
   // Initialize DB and repositories
   const dbPath = join(app.getPath('userData'), 'database.sqlite')
   dbManager = new DatabaseManager(dbPath)
-  dbManager.connect()
+  try {
+    dbManager.connect()
+  } catch (err) {
+    dialog.showErrorBox(
+      'Database Error',
+      `Failed to connect to SQLite database:\n${err instanceof Error ? err.message : String(err)}\n\nPath: ${dbPath}`
+    )
+    app.quit()
+    return
+  }
 
   docRepo = new SQLiteDocumentRepository(() => dbManager.getDatabase())
   mappingRepo = new SQLiteFolderMappingRepository(() => dbManager.getDatabase())

@@ -61,7 +61,7 @@ export class SQLiteOfflineTaskRepository implements OfflineTaskRepository {
 
   public async listPending(): Promise<OfflineTask[]> {
     const db = this.getDb();
-    const rows = db.prepare('SELECT * FROM offline_tasks WHERE status = "PENDING" ORDER BY createdAt ASC').all();
+    const rows = db.prepare("SELECT * FROM offline_tasks WHERE status = 'PENDING' ORDER BY createdAt ASC").all();
     return rows.map((row) => this.mapRow(row));
   }
 }

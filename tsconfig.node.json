@@ -6,8 +6,11 @@
     "types": ["electron-vite/node"],
     "baseUrl": ".",
     "paths": {
+      "@core": ["packages/core/src/index.ts"],
       "@core/*": ["packages/core/src/*"],
+      "@database": ["packages/database/src/index.ts"],
       "@database/*": ["packages/database/src/*"],
+      "@shared": ["packages/shared/src/index.ts"],
       "@shared/*": ["packages/shared/src/*"]
     }
   }

@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { exec } from 'child_process';
-import { Document, DocumentStatus, calculateFileMd5 } from '@shared';
+import { Document, calculateFileMd5 } from '@shared';
 import { CloudProvider, SearchQuery } from '../ports/cloud-provider';
 
 /**

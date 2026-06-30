@@ -16,8 +16,14 @@
       "@renderer/*": [
         "src/renderer/src/*"
       ],
+      "@core": [
+        "packages/core/src/index.ts"
+      ],
       "@core/*": [
         "packages/core/src/*"
+      ],
+      "@shared": [
+        "packages/shared/src/index.ts"
       ],
       "@shared/*": [
         "packages/shared/src/*"

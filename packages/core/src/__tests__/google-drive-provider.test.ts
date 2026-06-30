@@ -3,12 +3,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { GoogleDriveProvider } from '../services/google-drive-provider';
-import { calculateFileMd5 } from '@shared/utils/hash';
 import { exec } from 'child_process';
 
 // Mock exec to prevent real macOS file open triggers during testing
 vi.mock('child_process', () => ({
-  exec: vi.fn((cmd, cb: (err: Error | null) => void) => {
+  exec: vi.fn((_cmd, cb: (err: Error | null) => void) => {
     cb(null);
   }),
 }));

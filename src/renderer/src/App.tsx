@@ -393,6 +393,20 @@ function App(): React.JSX.Element {
     e.preventDefault()
     if (!setupPathInput.trim()) return
     try {
+      const validation = await window.electron.ipcRenderer.invoke(
+        'settings:validate-drive-root',
+        setupPathInput
+      )
+      if (!validation.valid) {
+        alert(`Error: ${validation.warning}`)
+        return
+      }
+
+      if (validation.warning) {
+        const confirmSave = confirm(`${validation.warning}\n\nDo you want to use this path anyway?`)
+        if (!confirmSave) return
+      }
+
       await window.electron.ipcRenderer.invoke('settings:set-drive-root', setupPathInput)
       setShowSetupModal(false)
       loadDriveRootInfo()

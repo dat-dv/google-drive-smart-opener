@@ -1,5 +1,5 @@
 import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
-import { join } from 'path'
+import { join, basename } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import * as fs from 'fs'
@@ -115,6 +115,45 @@ function getGoogleDriveRoot(): string {
   return fallback
 }
 
+/**
+ * Validates whether a given folder path is a valid Google Drive root path.
+ */
+function validateGoogleDriveRoot(folderPath: string): { valid: boolean; warning?: string } {
+  if (!folderPath || !fs.existsSync(folderPath)) {
+    return { valid: false, warning: 'The selected folder does not exist.' }
+  }
+
+  try {
+    const stat = fs.statSync(folderPath)
+    if (!stat.isDirectory()) {
+      return { valid: false, warning: 'The selected path is not a directory.' }
+    }
+
+    const lowercasePath = folderPath.toLowerCase()
+    const hasMyDriveSubfolder = fs.existsSync(join(folderPath, 'My Drive'))
+    const isMyDriveItself = basename(folderPath).toLowerCase() === 'my drive'
+    const isStandardName =
+      lowercasePath.includes('google drive') ||
+      lowercasePath.includes('googledrive') ||
+      lowercasePath.includes('library/cloudstorage')
+
+    if (!hasMyDriveSubfolder && !isMyDriveItself && !isStandardName) {
+      return {
+        valid: true,
+        warning:
+          'Warning: The selected folder does not appear to be a standard Google Drive root folder (no "My Drive" subfolder detected and path name does not match). Dynamic syncing may not function properly.'
+      }
+    }
+  } catch (err) {
+    return {
+      valid: false,
+      warning: `Failed to access the folder: ${err instanceof Error ? err.message : String(err)}`
+    }
+  }
+
+  return { valid: true }
+}
+
 function handleOpenFile(filePath: string): void {
   logToFile(`handleOpenFile triggered for: ${filePath}`)
   if (!mainWindow || mainWindow.isDestroyed()) {
@@ -144,11 +183,17 @@ function handleOpenFile(filePath: string): void {
       } else {
         logToFile(`[Smart Opener] Result not handled: ${result.type}`)
         dialog.showErrorBox('Error', `File not found: ${result.localPath}`)
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('show-setup-modal')
+        }
       }
     })
     .catch((err) => {
       logToFile(`openDocumentUseCase.execute failed: ${err.message}`)
       dialog.showErrorBox('Error', `Failed to open document: ${err.message}`)
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('show-setup-modal')
+      }
     })
 }
 
@@ -329,10 +374,16 @@ app.whenReady().then(async () => {
     const db = dbManager.getDatabase()
     const row = db.prepare("SELECT value FROM meta WHERE key = 'google_drive_root'").get() as
       { value: string } | undefined
+    const pathExists = row ? fs.existsSync(row.value) : false
     return {
       path: row ? row.value : getGoogleDriveRoot(),
-      isConfigured: !!row
+      isConfigured: !!row && pathExists
     }
+  })
+
+  ipcMain.handle('settings:validate-drive-root', async (_, path) => {
+    logToFile(`settings:validate-drive-root called with: ${path}`)
+    return validateGoogleDriveRoot(path)
   })
 
   ipcMain.handle('settings:set-drive-root', async (_, path) => {

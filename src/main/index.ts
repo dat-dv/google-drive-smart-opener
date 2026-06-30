@@ -146,8 +146,11 @@ function createWindow(): void {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow!.show()
+  })
 
-    // Flush any files clicked during cold start
+  // Flush file queue only after React has fully mounted and registered its IPC listeners.
+  // 'renderer-ready' is sent from App.tsx useEffect to signal mount completion.
+  ipcMain.once('renderer-ready', () => {
     if (fileToOpenOnStartup) {
       handleOpenFile(fileToOpenOnStartup)
       fileToOpenOnStartup = null

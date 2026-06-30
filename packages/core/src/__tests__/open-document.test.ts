@@ -6,6 +6,7 @@ import { DatabaseManager } from '@database';
 import { SQLiteDocumentRepository } from '@database';
 import { GoogleDriveProvider } from '../services/google-drive-provider';
 import { OpenDocumentUseCase } from '../usecases/open-document';
+import { UserInteractor } from '../ports/user-interactor';
 import { Document } from '@shared';
 import * as crypto from 'crypto';
 
@@ -16,7 +17,7 @@ vi.mock('child_process', () => ({
   }),
 }));
 
-describe('OpenDocumentUseCase Integration Tests', () => {
+describe('OpenDocumentUseCase Integration Tests with Prompting', () => {
   let tempDir: string;
   let localWorkspaceDir: string;
   let driveWorkspaceDir: string;
@@ -25,10 +26,11 @@ describe('OpenDocumentUseCase Integration Tests', () => {
   let docRepo: SQLiteDocumentRepository;
   let provider: GoogleDriveProvider;
   let useCase: OpenDocumentUseCase;
+  let mockInteractor: UserInteractor;
 
   beforeEach(() => {
     // Create clean directories for testing
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'open-usecase-test-'));
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'open-usecase-prompt-test-'));
     localWorkspaceDir = path.join(tempDir, 'local');
     driveWorkspaceDir = path.join(tempDir, 'drive');
     fs.mkdirSync(localWorkspaceDir);
@@ -42,8 +44,14 @@ describe('OpenDocumentUseCase Integration Tests', () => {
     // Initialize Drive Provider targeting drive workspace
     provider = new GoogleDriveProvider(driveWorkspaceDir);
 
+    // Initialize Mock Interactor
+    mockInteractor = {
+      promptSingleCandidate: vi.fn().mockResolvedValue('OPEN_DRIVE'),
+      promptMultipleCandidates: vi.fn().mockResolvedValue({ action: 'CANCEL' }),
+    };
+
     // Initialize Use Case
-    useCase = new OpenDocumentUseCase(docRepo, provider);
+    useCase = new OpenDocumentUseCase(docRepo, provider, mockInteractor);
   });
 
   afterEach(() => {
@@ -77,17 +85,38 @@ describe('OpenDocumentUseCase Integration Tests', () => {
   });
 
   describe('Database Hit Workflow (R2)', () => {
-    it('should open canonical Drive file and update lastOpened on database hit', async () => {
+    it('should open canonical Drive file directly without prompting on DB hit', async () => {
       const localPath = path.join(localWorkspaceDir, 'report.docx');
       const drivePath = 'My Drive/canonical_report.docx';
       const driveAbsPath = path.join(driveWorkspaceDir, drivePath);
 
-      // Create physical files
       fs.writeFileSync(localPath, 'Local content');
       fs.mkdirSync(path.dirname(driveAbsPath), { recursive: true });
       fs.writeFileSync(driveAbsPath, 'Drive content');
 
-      // Create DB link record
+      const doc = createDummyDocument({
+        drivePath,
+        localOriginalPath: localPath,
+        status: 'LINKED',
+      });
+      await docRepo.create(doc);
+
+      const result = await useCase.execute(localPath);
+      expect(result.type).toBe('OPENED');
+      expect(mockInteractor.promptSingleCandidate).not.toHaveBeenCalled();
+
+      if (result.type === 'OPENED') {
+        expect(result.document.id).toBe(doc.id);
+        expect(result.document.lastOpened).not.toBeNull();
+      }
+    });
+
+    it('should update state to DRIVE_DELETED directly if canonical Drive file is missing', async () => {
+      const localPath = path.join(localWorkspaceDir, 'report.docx');
+      const drivePath = 'My Drive/deleted_report.docx';
+
+      fs.writeFileSync(localPath, 'Local content');
+
       const doc = createDummyDocument({
         drivePath,
         localOriginalPath: localPath,
@@ -98,112 +127,154 @@ describe('OpenDocumentUseCase Integration Tests', () => {
       const result = await useCase.execute(localPath);
       expect(result.type).toBe('OPENED');
       
-      if (result.type === 'OPENED') {
-        expect(result.document.id).toBe(doc.id);
-        expect(result.document.lastOpened).not.toBeNull();
-
-        // Verify database state updated
-        const updated = await docRepo.findById(doc.id);
-        expect(updated?.lastOpened).not.toBeNull();
-      }
-    });
-
-    it('should set status to DRIVE_DELETED if canonical Drive file is missing', async () => {
-      const localPath = path.join(localWorkspaceDir, 'report.docx');
-      const drivePath = 'My Drive/deleted_report.docx';
-
-      // Create only local file
-      fs.writeFileSync(localPath, 'Local content');
-
-      // Create DB link record
-      const doc = createDummyDocument({
-        drivePath,
-        localOriginalPath: localPath,
-        status: 'LINKED',
-      });
-      await docRepo.create(doc);
-
-      const result = await useCase.execute(localPath);
-      expect(result.type).toBe('OPENED'); // Usecase returns OPENED state but internally marks state
-      
       const updated = await docRepo.findById(doc.id);
       expect(updated?.status).toBe('DRIVE_DELETED');
     });
   });
 
-  describe('Database Miss Workflow (R3)', () => {
-    it('should return MISS_NO_CANDIDATES when file is not indexed and no name match exists on Drive', async () => {
-      const localPath = path.join(localWorkspaceDir, 'unique-document.pdf');
-      fs.writeFileSync(localPath, 'Unique PDF Data');
+  describe('Database Miss Workflow (R3 / R4)', () => {
+    describe('Case 3: No candidates found (R3.3)', () => {
+      it('should automatically import file to My Drive/Other', async () => {
+        const localPath = path.join(localWorkspaceDir, 'new_sheet.xlsx');
+        fs.writeFileSync(localPath, 'Excel data content');
 
-      const result = await useCase.execute(localPath);
-      expect(result.type).toBe('MISS_NO_CANDIDATES');
+        const result = await useCase.execute(localPath);
+        expect(result.type).toBe('OPENED');
+        expect(mockInteractor.promptSingleCandidate).not.toHaveBeenCalled();
+
+        if (result.type === 'OPENED') {
+          expect(result.document.drivePath).toBe('My Drive/Other/new_sheet.xlsx');
+          expect(fs.existsSync(path.join(driveWorkspaceDir, 'My Drive/Other/new_sheet.xlsx'))).toBe(true);
+
+          // Verify db record created
+          const docInDb = await docRepo.findById(result.document.id);
+          expect(docInDb).toBeDefined();
+          expect(docInDb?.localOriginalPath).toBe(localPath);
+          expect(docInDb?.status).toBe('LINKED');
+        }
+      });
     });
 
-    it('should return MISS_SINGLE_CANDIDATE when exactly one name matching candidate exists on Drive', async () => {
-      const localPath = path.join(localWorkspaceDir, 'budget.xlsx');
-      fs.writeFileSync(localPath, 'Budget local data');
+    describe('Case 1: Single candidate found (R3.1)', () => {
+      let localPath: string;
+      let drivePath: string;
+      let driveAbsPath: string;
 
-      const drivePath = 'My Drive/Finances/budget.xlsx';
-      const driveAbsPath = path.join(driveWorkspaceDir, drivePath);
-      fs.mkdirSync(path.dirname(driveAbsPath), { recursive: true });
-      fs.writeFileSync(driveAbsPath, 'Budget drive data (different)');
+      beforeEach(() => {
+        localPath = path.join(localWorkspaceDir, 'budget.xlsx');
+        fs.writeFileSync(localPath, 'Local Budget contents');
 
-      const result = await useCase.execute(localPath);
-      expect(result.type).toBe('MISS_SINGLE_CANDIDATE');
-      
-      if (result.type === 'MISS_SINGLE_CANDIDATE') {
-        expect(result.candidate.drivePath).toBe(drivePath);
-      }
+        drivePath = 'My Drive/Finance/budget.xlsx';
+        driveAbsPath = path.join(driveWorkspaceDir, drivePath);
+        fs.mkdirSync(path.dirname(driveAbsPath), { recursive: true });
+        fs.writeFileSync(driveAbsPath, 'Drive Budget contents (different content)');
+      });
+
+      it('should prompt user and link to Drive copy if user chooses OPEN_DRIVE', async () => {
+        vi.mocked(mockInteractor.promptSingleCandidate).mockResolvedValue('OPEN_DRIVE');
+
+        const result = await useCase.execute(localPath);
+        expect(result.type).toBe('OPENED');
+        expect(mockInteractor.promptSingleCandidate).toHaveBeenCalledWith(localPath, expect.objectContaining({
+          drivePath,
+        }));
+
+        if (result.type === 'OPENED') {
+          expect(result.document.drivePath).toBe(drivePath);
+          expect(result.document.localOriginalPath).toBe(localPath);
+
+          // Verify record exists in DB
+          const saved = await docRepo.findByLocalOriginalPath(localPath);
+          expect(saved).toBeDefined();
+          expect(saved?.drivePath).toBe(drivePath);
+        }
+      });
+
+      it('should import as new copy if user chooses IMPORT_NEW', async () => {
+        vi.mocked(mockInteractor.promptSingleCandidate).mockResolvedValue('IMPORT_NEW');
+
+        const result = await useCase.execute(localPath);
+        expect(result.type).toBe('OPENED');
+
+        if (result.type === 'OPENED') {
+          // Imported to My Drive/Other
+          expect(result.document.drivePath).toBe('My Drive/Other/budget.xlsx');
+          expect(fs.existsSync(path.join(driveWorkspaceDir, 'My Drive/Other/budget.xlsx'))).toBe(true);
+        }
+      });
+
+      it('should cancel open action and write nothing if user chooses CANCEL', async () => {
+        vi.mocked(mockInteractor.promptSingleCandidate).mockResolvedValue('CANCEL');
+
+        const result = await useCase.execute(localPath);
+        expect(result.type).toBe('CANCELLED');
+
+        // Verify no link in DB
+        const saved = await docRepo.findByLocalOriginalPath(localPath);
+        expect(saved).toBeNull();
+      });
     });
 
-    it('should return MISS_SINGLE_CANDIDATE identifying hash-matching file even among name matches', async () => {
-      const localPath = path.join(localWorkspaceDir, 'doc.txt');
-      fs.writeFileSync(localPath, 'Common text content'); // MD5 hash matches
+    describe('Case 2: Multiple candidates found (R3.2)', () => {
+      let localPath: string;
+      let drivePath1: string;
+      let drivePath2: string;
 
-      // Create multiple files on Drive with same name, but only one matches content hash
-      const drivePathMatch = 'My Drive/Docs/doc.txt';
-      const drivePathOther = 'My Drive/Archive/doc.txt';
-      const driveAbsMatch = path.join(driveWorkspaceDir, drivePathMatch);
-      const driveAbsOther = path.join(driveWorkspaceDir, drivePathOther);
+      beforeEach(() => {
+        localPath = path.join(localWorkspaceDir, 'notes.txt');
+        fs.writeFileSync(localPath, 'Local Notes contents');
 
-      fs.mkdirSync(path.dirname(driveAbsMatch), { recursive: true });
-      fs.mkdirSync(path.dirname(driveAbsOther), { recursive: true });
-      fs.writeFileSync(driveAbsMatch, 'Common text content'); // Same MD5
-      fs.writeFileSync(driveAbsOther, 'Other text content'); // Different MD5
+        drivePath1 = 'My Drive/NotesA/notes.txt';
+        drivePath2 = 'My Drive/NotesB/notes.txt';
+        const driveAbs1 = path.join(driveWorkspaceDir, drivePath1);
+        const driveAbs2 = path.join(driveWorkspaceDir, drivePath2);
 
-      const result = await useCase.execute(localPath);
-      expect(result.type).toBe('MISS_SINGLE_CANDIDATE');
-      
-      if (result.type === 'MISS_SINGLE_CANDIDATE') {
-        expect(result.candidate.drivePath).toBe(drivePathMatch);
-      }
-    });
+        fs.mkdirSync(path.dirname(driveAbs1), { recursive: true });
+        fs.mkdirSync(path.dirname(driveAbs2), { recursive: true });
+        fs.writeFileSync(driveAbs1, 'Drive Notes A');
+        fs.writeFileSync(driveAbs2, 'Drive Notes B');
+      });
 
-    it('should return MISS_MULTIPLE_CANDIDATES when multiple name matches exist with no hash match', async () => {
-      const localPath = path.join(localWorkspaceDir, 'notes.txt');
-      fs.writeFileSync(localPath, 'Local notes');
+      it('should prompt user and link to selected candidate if user chooses OPEN_DRIVE', async () => {
+        // Mock picker choosing candidate 2
+        vi.mocked(mockInteractor.promptMultipleCandidates).mockImplementation(async (_path, candidates) => {
+          const selected = candidates.find(c => c.drivePath === drivePath2)!;
+          return { action: 'OPEN_DRIVE', selected };
+        });
 
-      // Create two candidates on Drive with same name but different content
-      const drivePath1 = 'My Drive/NotesA/notes.txt';
-      const drivePath2 = 'My Drive/NotesB/notes.txt';
-      const driveAbs1 = path.join(driveWorkspaceDir, drivePath1);
-      const driveAbs2 = path.join(driveWorkspaceDir, drivePath2);
+        const result = await useCase.execute(localPath);
+        expect(result.type).toBe('OPENED');
+        expect(mockInteractor.promptMultipleCandidates).toHaveBeenCalled();
 
-      fs.mkdirSync(path.dirname(driveAbs1), { recursive: true });
-      fs.mkdirSync(path.dirname(driveAbs2), { recursive: true });
-      fs.writeFileSync(driveAbs1, 'Drive Notes A content');
-      fs.writeFileSync(driveAbs2, 'Drive Notes B content');
+        if (result.type === 'OPENED') {
+          expect(result.document.drivePath).toBe(drivePath2);
+          expect(result.document.localOriginalPath).toBe(localPath);
 
-      const result = await useCase.execute(localPath);
-      expect(result.type).toBe('MISS_MULTIPLE_CANDIDATES');
-      
-      if (result.type === 'MISS_MULTIPLE_CANDIDATES') {
-        expect(result.candidates.length).toBe(2);
-        const paths = result.candidates.map((c) => c.drivePath);
-        expect(paths).toContain(drivePath1);
-        expect(paths).toContain(drivePath2);
-      }
+          // Verify db record updated
+          const saved = await docRepo.findByLocalOriginalPath(localPath);
+          expect(saved).toBeDefined();
+          expect(saved?.drivePath).toBe(drivePath2);
+        }
+      });
+
+      it('should import as new copy if user chooses IMPORT_NEW in multiple match', async () => {
+        vi.mocked(mockInteractor.promptMultipleCandidates).mockResolvedValue({ action: 'IMPORT_NEW' });
+
+        const result = await useCase.execute(localPath);
+        expect(result.type).toBe('OPENED');
+
+        if (result.type === 'OPENED') {
+          expect(result.document.drivePath).toBe('My Drive/Other/notes.txt');
+          expect(fs.existsSync(path.join(driveWorkspaceDir, 'My Drive/Other/notes.txt'))).toBe(true);
+        }
+      });
+
+      it('should cancel action if user chooses CANCEL in multiple match', async () => {
+        vi.mocked(mockInteractor.promptMultipleCandidates).mockResolvedValue({ action: 'CANCEL' });
+
+        const result = await useCase.execute(localPath);
+        expect(result.type).toBe('CANCELLED');
+      });
     });
   });
 });

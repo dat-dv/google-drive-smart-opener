@@ -1,0 +1,64 @@
+# Bảng kịch bản & Trường hợp xử lý của File A (Local vs Google Drive)
+
+Tài liệu này mô tả chi tiết toàn bộ các trường hợp xử lý đối với **File A cục bộ (Local File A)** và **File A trên Google Drive (Drive File A)** trong hệ thống **Google Drive Smart Opener**.
+
+---
+
+## 1. Bản đồ ánh xạ ứng dụng mở tệp tin (Browser & App Mapping)
+Khi mở một tệp tin thông qua Google Drive Desktop App, hệ thống sẽ đọc thuộc tính mở rộng `xattr` (`com.google.drivefs.item-id#S`) để lấy Google Drive Item ID và mở trực tuyến trên trình duyệt.
+
+| Định dạng File A | Trình duyệt / Ứng dụng tương ứng được mở | URL định dạng mở trên Trình duyệt |
+| :--- | :--- | :--- |
+| **Word** (`.docx`, `.doc`, `.txt`, `.md`, `.rtf`) | **Google Docs** | `https://docs.google.com/document/d/{itemId}/edit` |
+| **Excel** (`.xlsx`, `.xls`, `.csv`) | **Google Sheets** | `https://docs.google.com/spreadsheets/d/{itemId}/edit` |
+| **PowerPoint** (`.pptx`, `.ppt`) | **Google Slides** | `https://docs.google.com/presentation/d/{itemId}/edit` |
+| **Khác** (PDF, Ảnh, Định dạng Binary...) | **Google Drive Viewer** | `https://drive.google.com/file/d/{itemId}/view` |
+| **Trường hợp lỗi** (Không đọc được `xattr` sau 10s hoặc Offline/Lỗi) | **Mở ứng dụng mặc định của macOS** (Word, Excel, Preview...) | Mở trực tiếp file vật lý bằng lệnh `open "{path}"` |
+
+---
+
+## 2. Kịch bản khi mở File A (Open Document Workflow)
+Khi người dùng thực hiện mở File A cục bộ (`localOriginalPath`), ứng dụng sẽ tra cứu trạng thái trong cơ sở dữ liệu SQLite và đưa ra quyết định xử lý tương ứng:
+
+| Loại kịch bản | Trạng thái tìm kiếm trong DB | Tình huống thực tế trên đĩa cứng | Hành động của hệ thống & Kết quả |
+| :--- | :--- | :--- | :--- |
+| **Database Hit (Đã link)** | Tìm thấy mapping của File A trong DB | File A trên Drive vẫn tồn tại và không bị sửa đổi đồng thời | Mở thẳng liên kết Drive tương ứng trên trình duyệt (Docs/Sheets/Slides) theo `xattr` Item ID. |
+| **Database Hit (Đã link)** | Tìm thấy mapping | Bản Drive của File A đã bị xóa bên ngoài ứng dụng | Đánh dấu trạng thái DB thành `DRIVE_DELETED`. Cho phép mở hoặc báo lỗi phù hợp. |
+| **Database Hit (Đã link)** | Tìm thấy mapping | Cả bản Local A và Drive A đều bị sửa đổi độc lập (Conflict) | Chuyển trạng thái sang `CONFLICT`. Kích hoạt hộp thoại **Giải quyết xung đột (Conflict Resolution)** với 6 lựa chọn (xem phần 3). |
+| **Database Miss (Chưa link)** | Không tìm thấy mapping | Không tìm thấy bất kỳ file nào trùng tên trên Drive | **Tự động Import**: Copy File A cục bộ vào thư mục `My Drive/Other` (đổi tên thành `A (1).ext` nếu trùng tên trên Drive), tạo record mới với trạng thái `LINKED`, mở Drive copy trực tuyến. |
+| **Database Miss (Chưa link)** | Không tìm thấy mapping | Tìm thấy đúng **1 file trùng tên** hoặc **1 file trùng khớp cả MD5 Hash + Size** trên Drive | Hiển thị hộp thoại chọn ứng viên đơn lẻ (Single Candidate):<br>1. **Open Drive**: Link Local A vào file Drive có sẵn và mở trực tuyến.<br>2. **Import New**: Copy Local A lên Drive làm bản mới (đổi tên tránh trùng), link và mở.<br>3. **Cancel**: Hủy bỏ thao tác. |
+| **Database Miss (Chưa link)** | Không tìm thấy mapping | Tìm thấy **nhiều file trùng tên** trên Drive | Hiển thị bảng chọn nhiều ứng viên (Multiple Candidates Picker):<br>1. Chọn 1 file cụ thể trên Drive để link rồi mở.<br>2. Chọn **Create New Copy** để tự động import bản mới.<br>3. **Cancel** để hủy bỏ thao tác. |
+| **Database Miss + Ngoại tuyến (Offline)** | Không tìm thấy mapping | Mạng ngoại tuyến | Tạo tài liệu tạm thời (`UNLINKED`, gắn cờ `offlinePending: true`). Mở Local File A bằng ứng dụng mặc định trên macOS. Đăng ký hàng đợi công việc ngoại tuyến (`IMPORT_FILE`). Khi có mạng trở lại, hệ thống tự động import và cập nhật liên kết sang `LINKED`. |
+
+---
+
+## 3. Kịch bản chỉnh sửa & Đồng bộ sau khi đã liên kết (Modification & Syncing)
+Sau khi File A (Local) đã được liên kết thành công với File A (Drive), các sự kiện chỉnh sửa ở một hoặc hai phía sẽ dẫn đến các hành vi sau:
+
+| Bên sửa đổi | Trạng thái phía đối diện | Cơ chế phát hiện | Tình huống xảy ra & Kết quả xử lý |
+| :--- | :--- | :--- | :--- |
+| **Sửa Local File A** | Bản Drive A **không** bị sửa đổi | Google Drive Desktop Client & Drive Watcher | 1. Ứng dụng Google Drive for Desktop tự động đồng bộ thay đổi từ local lên đám mây.<br>2. File watcher nhận diện thay đổi, tính lại MD5 hash cho Local File A và cập nhật trạng thái trong SQLite là `LINKED` (không có xung đột). |
+| **Sửa Drive File A** (Sửa trực tuyến hoặc trên Drive mirror) | Bản Local A **không** bị sửa đổi | Drive Watcher (Chokidar add/change) | 1. File watcher bắt sự kiện thay đổi trên Drive.<br>2. Cập nhật `driveHash` mới và cập nhật thời gian sửa đổi trong SQLite. Trạng thái giữ nguyên `LINKED`. Lần mở sau sẽ hiển thị bản mới nhất trên trình duyệt. |
+| **Sửa cả Local File A và Drive File A** (Độc lập/Đồng thời) | Cả hai phía đều bị sửa đổi so với mã băm ban đầu | Đối chiếu mã băm (MD5) khi mở hoặc qua File Watcher | **Trạng thái Xung đột (CONFLICT)**. Khi người dùng mở File A hoặc giải quyết xung đột thủ công, hệ thống hiện hộp thoại giải quyết xung đột với 6 tuỳ chọn:<br>1. **KEEP_DRIVE (Replace Local)**: Ghi đè nội dung từ Drive A vào Local A. Đổi trạng thái về `LINKED`, mở bản Drive trực tuyến.<br>2. **KEEP_LOCAL (Replace Drive)**: Ghi đè nội dung từ Local A vào Drive A. Đổi trạng thái về `LINKED`, mở bản Drive trực tuyến.<br>3. **KEEP_BOTH_RENAME_LOCAL**: Đổi tên file cục bộ thành `A (Local Conflict).ext`, gỡ liên kết cũ, import bản cục bộ mới đổi tên lên Drive và tạo liên kết mới.<br>4. **KEEP_BOTH_RENAME_DRIVE**: Đổi tên file trên Drive thành `A (Drive Conflict).ext`, gỡ liên kết cũ, ghi đè Local A vào đường dẫn Drive cũ và liên kết thành bản ghi mới.<br>5. **OPEN_DRIVE_ANYWAY**: Giữ nguyên trạng thái xung đột, tiếp tục mở bản Drive trên trình duyệt.<br>6. **OPEN_LOCAL_ANYWAY**: Giữ nguyên trạng thái xung đột, mở Local File A bằng ứng dụng mặc định trên macOS. |
+
+---
+
+## 4. Kịch bản thay đổi đường dẫn / Cấu trúc thư mục (Rename & Move)
+Ứng dụng áp dụng nguyên tắc: **Google Drive luôn là Master cho cấu trúc thư mục**, Local chỉ là bản phản chiếu mềm (Soft Reflection).
+
+| Hành động | Phía thực hiện | Phản ứng của hệ thống (SQLite Index & Vật lý) |
+| :--- | :--- | :--- |
+| **Đổi tên / Di chuyển File A** | Phía **Google Drive** | Drive Watcher nhận diện sự kiện, tự động cập nhật `drivePath` mới trong cơ sở dữ liệu SQLite. **Giữ nguyên Document ID** ban đầu để đảm bảo liên kết không bị đứt gãy. Không tự động đổi tên File Local tương ứng. |
+| **Đổi tên / Di chuyển Folder chứa File A** | Phía **Google Drive** | Tự động cập nhật `drivePath` đệ quy cho toàn bộ các `Document` con và `FolderMapping` con thuộc thư mục đó. Không tự động di chuyển hay đổi tên thư mục cục bộ dưới máy (để tránh làm hỏng cấu trúc dự án khác của người dùng). Hiển thị cảnh báo nhẹ trên giao diện UI để người dùng chọn tùy chọn đồng bộ thủ công. |
+| **Đổi tên / Di chuyển File A** | Phía **Local** | Không tự động đổi tên file trên Drive để bảo toàn tính master của Drive. Đường dẫn Local cũ bị mất liên kết và hệ thống sẽ coi tệp tin cục bộ tại vị trí mới là chưa được liên kết (Database Miss) trừ khi có ánh xạ cấp thư mục khớp hoặc liên kết thủ công lại. |
+
+---
+
+## 5. Kịch bản xóa File A (Deletion)
+Khi một trong hai hoặc cả hai phiên bản của File A bị xóa:
+
+| Bên bị xóa | Trạng thái bên còn lại | Trạng thái trong DB | Hành vi hệ thống khi mở file |
+| :--- | :--- | :--- | :--- |
+| **Xóa bản Drive File A** | Bản Local File A vẫn còn nguyên | `DRIVE_DELETED` | Khi mở Local File A, hệ thống phát hiện bản Drive tương ứng không còn tồn tại trên bộ nhớ đệm Drive Desktop, cập nhật trạng thái thành `DRIVE_DELETED` trong DB và xử lý như trường hợp mất liên kết. |
+| **Xóa bản Local File A** | Bản Drive File A vẫn còn nguyên | `LOCAL_DELETED` hoặc không đổi | Nếu người dùng cố gắng mở Local File A thông qua ứng dụng, hệ thống trả về lỗi `LOCAL_FILE_NOT_FOUND` và hiển thị cảnh báo cho người dùng. File trên Drive vẫn được bảo toàn nguyên vẹn. |
+| **Xóa liên kết Folder Mapping** (Thao tác trên UI) | Cả hai file Local và Drive đều còn nguyên | `UNLINKED` (Trừ khi chọn xóa cả document con) | Xóa ánh xạ thư mục không xóa bất kỳ tệp tin vật lý nào. Chỉ dừng theo dõi thư mục (unwatch) và chuyển các document thuộc mapping đó về trạng thái tự do không thuộc mapping nào. |

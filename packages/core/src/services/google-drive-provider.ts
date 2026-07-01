@@ -117,6 +117,26 @@ export class GoogleDriveProvider implements CloudProvider {
   }
 
   /**
+   * Resolves the correct Google web editor URL for a given file path and Drive item ID.
+   * Constructs type-specific editor URLs (Docs/Sheets/Slides) instead of the generic
+   * `open?id=` redirect, which lands on the Drive file preview rather than the editor.
+   */
+  private resolveEditorUrl(absolutePath: string, itemId: string): string {
+    const ext = path.extname(absolutePath).toLowerCase()
+    if (['.doc', '.docx', '.txt', '.md', '.rtf'].includes(ext)) {
+      return `https://docs.google.com/document/d/${itemId}/edit`
+    }
+    if (['.xls', '.xlsx', '.csv'].includes(ext)) {
+      return `https://docs.google.com/spreadsheets/d/${itemId}/edit`
+    }
+    if (['.ppt', '.pptx'].includes(ext)) {
+      return `https://docs.google.com/presentation/d/${itemId}/edit`
+    }
+    // Fallback for PDFs, images, and other binary files
+    return `https://drive.google.com/file/d/${itemId}/view`
+  }
+
+  /**
    * Opens the file on macOS.
    * When useDriveApp is true, attempts to open via Google Drive desktop app first.
    * Retries xattr read for up to 10 seconds to handle Drive sync delay after import.
@@ -144,11 +164,11 @@ export class GoogleDriveProvider implements CloudProvider {
         try {
           const itemId = await execCmd(`xattr -p com.google.drivefs.item-id#S "${absolutePath}"`)
           if (itemId) {
-            const driveUrl = `https://docs.google.com/open?id=${itemId}`
+            const editorUrl = this.resolveEditorUrl(absolutePath, itemId)
             console.log(
-              `[GoogleDriveProvider] Found item ID ${itemId} on attempt ${attempt}. Opening: ${driveUrl}`
+              `[GoogleDriveProvider] Found item ID ${itemId} on attempt ${attempt}. Opening: ${editorUrl}`
             )
-            await execCmd(`open "${driveUrl}"`)
+            await execCmd(`open "${editorUrl}"`)
             return
           }
         } catch {

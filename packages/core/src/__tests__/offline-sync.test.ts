@@ -92,6 +92,7 @@ describe('M9 Offline Cache & Sync Integration', () => {
         folderMappingId: null
       })),
       openFile: vi.fn(),
+      openOnline: vi.fn(),
       moveFile: vi.fn()
     }
 

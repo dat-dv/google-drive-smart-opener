@@ -446,6 +446,17 @@ app.whenReady().then(async () => {
     return false
   })
 
+  ipcMain.handle('drive:preview-online', async (_, drivePath) => {
+    logToFile(`drive:preview-online called with: ${drivePath}`)
+    try {
+      await driveProvider.openOnline(drivePath)
+      return { success: true }
+    } catch (err) {
+      logToFile(`Error previewing online: ${err}`)
+      return { success: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
   // Register Document & Conflict Center IPC Handlers (M10)
   ipcMain.handle('documents:list-conflicts', async () => {
     const list = await docRepo.list()

@@ -61,6 +61,11 @@ export interface CloudProvider {
   openFile(drivePath: string, useDriveApp?: boolean): Promise<void>
 
   /**
+   * Opens a document's Google Drive web editor / viewer URL in the browser.
+   */
+  openOnline(drivePath: string): Promise<void>
+
+  /**
    * Moves a cloud document to another folder inside the cloud storage.
    */
   moveFile(drivePath: string, targetDriveFolder: string): Promise<void>

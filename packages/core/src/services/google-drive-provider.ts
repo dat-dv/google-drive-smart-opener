@@ -193,6 +193,35 @@ export class GoogleDriveProvider implements CloudProvider {
   }
 
   /**
+   * Opens the file's Google Drive web editor / viewer URL in the browser.
+   */
+  public async openOnline(drivePath: string): Promise<void> {
+    const absolutePath = path.isAbsolute(drivePath) ? drivePath : this.resolveLocalPath(drivePath)
+    if (!fs.existsSync(absolutePath)) {
+      throw new Error(`File does not exist: ${absolutePath}`)
+    }
+
+    const execCmd = (cmd: string): Promise<string> =>
+      new Promise((resolve, reject) => {
+        exec(cmd, (error, stdout) => (error ? reject(error) : resolve(stdout.trim())))
+      })
+
+    try {
+      const itemId = await execCmd(`xattr -p com.google.drivefs.item-id#S "${absolutePath}"`)
+      if (itemId) {
+        const editorUrl = this.resolveEditorUrl(absolutePath, itemId)
+        console.log(`[GoogleDriveProvider] Found item ID ${itemId} for online preview. Opening: ${editorUrl}`)
+        await execCmd(`open "${editorUrl}"`)
+        return
+      }
+    } catch (err) {
+      console.warn(`[GoogleDriveProvider] Failed to read xattr for online preview: ${err instanceof Error ? err.message : String(err)}`)
+    }
+
+    throw new Error(`Google Drive Item ID not synced yet for file: ${drivePath}. Please wait for Drive desktop sync to complete.`)
+  }
+
+  /**
    * Moves a file within the Google Drive filesystem.
    */
   public async moveFile(drivePath: string, targetDriveFolder: string): Promise<void> {

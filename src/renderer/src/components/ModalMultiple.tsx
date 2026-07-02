@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React from 'react'
 import type { Document } from '@shared/types'
 
 export interface ModalMultipleProps {
@@ -14,8 +14,6 @@ export function ModalMultiple({
   candidates,
   onRespond
 }: ModalMultipleProps): React.JSX.Element | null {
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-
   if (!isOpen) return null
 
   const handleShowInFolder = (path: string): void => {
@@ -63,24 +61,36 @@ export function ModalMultiple({
           <p className="text-sm text-slate-400 leading-relaxed">
             Multiple matches found in Google Drive. Select which document to link:
           </p>
-          <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-1">
+          <div className="flex flex-col gap-2 max-h-56 overflow-y-auto pr-1">
             {candidates.map((c) => (
               <div
                 key={c.id}
-                className={`flex items-center justify-between p-3.5 rounded-xl border cursor-pointer transition-all ${
-                  selectedId === c.id
-                    ? 'border-indigo-500 bg-indigo-500/10 text-white'
-                    : 'border-white/5 bg-white/2 hover:bg-white/5 text-slate-300'
-                }`}
-                onClick={(): void => setSelectedId(c.id)}
+                className="flex items-center justify-between p-3.5 rounded-xl border border-white/5 bg-slate-950/20 hover:bg-white/5 transition-all text-slate-300 gap-4"
               >
-                <div className="flex items-center gap-2 min-w-0 flex-1">
+                <div className="flex flex-col min-w-0 flex-1 gap-1">
+                  <span
+                    className="text-xs font-semibold text-white font-mono truncate"
+                    title={c.drivePath}
+                  >
+                    {c.drivePath}
+                  </span>
+                  <div className="flex items-center gap-2 text-[10px] text-slate-500 font-medium">
+                    <span className="uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-900 border border-white/5">
+                      {c.status}
+                    </span>
+                    {c.driveModifiedTime && (
+                      <span>Modified: {new Date(c.driveModifiedTime).toLocaleDateString()}</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
                   <button
                     onClick={(e): void => {
                       e.stopPropagation()
                       handlePreviewOnline(c.drivePath)
                     }}
-                    className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-indigo-400 transition-all duration-150 shrink-0"
+                    className="p-1 rounded bg-white/5 hover:bg-white/10 text-slate-400 hover:text-indigo-400 transition-all duration-150 shrink-0"
                     title="Preview Online (Open in Browser)"
                   >
                     <svg
@@ -103,7 +113,7 @@ export function ModalMultiple({
                         e.stopPropagation()
                         handleShowInFolder(c.localOriginalPath!)
                       }}
-                      className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-amber-400 transition-all duration-150 shrink-0"
+                      className="p-1 rounded bg-white/5 hover:bg-white/10 text-slate-400 hover:text-amber-400 transition-all duration-150 shrink-0"
                       title="Open containing folder"
                     >
                       <svg
@@ -121,11 +131,13 @@ export function ModalMultiple({
                       </svg>
                     </button>
                   )}
-                  <span className="text-xs font-medium font-mono truncate">{c.drivePath}</span>
+                  <button
+                    onClick={(): void => onRespond('OPEN_DRIVE', c.id)}
+                    className="px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-semibold shadow-lg shadow-indigo-500/10 transition-all border border-indigo-500/30 shrink-0 ml-1"
+                  >
+                    Link & Open
+                  </button>
                 </div>
-                <span className="text-[10px] px-2 py-0.5 rounded bg-slate-950/40 text-slate-500 uppercase tracking-wider font-semibold shrink-0 ml-2">
-                  {c.status}
-                </span>
               </div>
             ))}
           </div>
@@ -138,21 +150,10 @@ export function ModalMultiple({
             Cancel
           </button>
           <button
-            className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 text-sm font-semibold text-slate-300 transition-all"
+            className="px-4 py-2 rounded-xl bg-indigo-600/10 hover:bg-indigo-600/20 border border-indigo-500/30 text-sm font-semibold text-indigo-300 transition-all"
             onClick={(): void => onRespond('IMPORT_NEW')}
           >
             Import as New
-          </button>
-          <button
-            className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold shadow-lg shadow-indigo-500/20 transition-all disabled:opacity-40 disabled:pointer-events-none"
-            onClick={(): void => {
-              if (selectedId) {
-                onRespond('OPEN_DRIVE', selectedId)
-              }
-            }}
-            disabled={!selectedId}
-          >
-            Link & Open
           </button>
         </div>
       </div>

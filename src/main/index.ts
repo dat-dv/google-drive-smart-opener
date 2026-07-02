@@ -27,6 +27,9 @@ let interactor: ElectronUserInteractor
 let offlineSyncService: OfflineSyncService
 
 const fileQueue: string[] = []
+const processingFiles = new Set<string>()
+const recentlyOpenedFiles = new Map<string, number>()
+const DEBOUNCE_MS = 1500
 
 function logToFile(msg: string): void {
   const line = `[${new Date().toISOString()}] ${msg}\n`
@@ -99,6 +102,20 @@ function validateGoogleDriveRoot(folderPath: string): { valid: boolean; warning?
 }
 
 function handleOpenFile(filePath: string): void {
+  const now = Date.now()
+  if (processingFiles.has(filePath)) {
+    logToFile(`[Smart Opener] Blocked duplicate handleOpenFile (already processing): ${filePath}`)
+    return
+  }
+  const lastOpened = recentlyOpenedFiles.get(filePath)
+  if (lastOpened && now - lastOpened < DEBOUNCE_MS) {
+    logToFile(`[Smart Opener] Blocked duplicate handleOpenFile (debounced): ${filePath}`)
+    return
+  }
+
+  processingFiles.add(filePath)
+  recentlyOpenedFiles.set(filePath, now)
+
   logToFile(`handleOpenFile triggered for: ${filePath}`)
   if (!mainWindow || mainWindow.isDestroyed()) {
     logToFile(
@@ -108,6 +125,7 @@ function handleOpenFile(filePath: string): void {
     rendererReady = false
     fileQueue.push(filePath)
     createWindow()
+    processingFiles.delete(filePath)
     return
   }
 
@@ -144,6 +162,7 @@ function handleOpenFile(filePath: string): void {
       }
     })
     .finally(() => {
+      processingFiles.delete(filePath)
       // P1.3: Hide loading overlay regardless of outcome
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('file-processing-done')
@@ -158,6 +177,25 @@ let rendererReady = false
 app.on('open-file', (event, filePath) => {
   event.preventDefault()
   logToFile(`macOS open-file event received: ${filePath}. rendererReady=${rendererReady}`)
+
+  const now = Date.now()
+  for (const [path, time] of recentlyOpenedFiles.entries()) {
+    if (now - time > DEBOUNCE_MS * 2) {
+      recentlyOpenedFiles.delete(path)
+    }
+  }
+
+  const lastOpened = recentlyOpenedFiles.get(filePath)
+  if (lastOpened && now - lastOpened < DEBOUNCE_MS) {
+    logToFile(`macOS open-file event ignored (recently received): ${filePath}`)
+    return
+  }
+  if (fileQueue.includes(filePath)) {
+    logToFile(`macOS open-file event ignored (already in queue): ${filePath}`)
+    return
+  }
+  recentlyOpenedFiles.set(filePath, now)
+
   if (rendererReady) {
     handleOpenFile(filePath)
   } else {
@@ -193,17 +231,7 @@ function createWindow(): void {
     rendererReady = false
   })
 
-  // Flush file queue only after React has fully mounted and registered its IPC listeners.
-  // 'renderer-ready' is sent from App.tsx useEffect to signal mount completion.
-  ipcMain.once('renderer-ready', () => {
-    logToFile(`renderer-ready event received. Flushing file queue of length: ${fileQueue.length}`)
-    rendererReady = true
-    while (fileQueue.length > 0) {
-      const file = fileQueue.shift()
-      logToFile(`Flushing queued file: ${file}`)
-      if (file) handleOpenFile(file)
-    }
-  })
+
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
@@ -443,6 +471,18 @@ app.whenReady().then(async () => {
       return true
     }
     return false
+  })
+
+  // Flush file queue only after React has fully mounted and registered its IPC listeners.
+  // 'renderer-ready' is sent from App.tsx useEffect to signal mount completion.
+  ipcMain.on('renderer-ready', () => {
+    logToFile(`renderer-ready event received. Flushing file queue of length: ${fileQueue.length}`)
+    rendererReady = true
+    while (fileQueue.length > 0) {
+      const file = fileQueue.shift()
+      logToFile(`Flushing queued file: ${file}`)
+      if (file) handleOpenFile(file)
+    }
   })
 
   createWindow()

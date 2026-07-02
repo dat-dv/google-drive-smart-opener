@@ -540,28 +540,34 @@ function App(): React.JSX.Element {
       </main>
 
       {/* MODAL: Single Candidate Prompt */}
-      <ModalSingle
-        isOpen={!!singlePrompt}
-        localPath={singlePrompt?.localPath || ''}
-        candidate={singlePrompt!.candidate}
-        onRespond={respondSingle}
-      />
+      {singlePrompt && (
+        <ModalSingle
+          isOpen={!!singlePrompt}
+          localPath={singlePrompt.localPath}
+          candidate={singlePrompt.candidate}
+          onRespond={respondSingle}
+        />
+      )}
 
       {/* MODAL: Multiple Candidates Picker */}
-      <ModalMultiple
-        isOpen={!!multiplePrompt}
-        localPath={multiplePrompt?.localPath || ''}
-        candidates={multiplePrompt?.candidates || []}
-        onRespond={respondMultiple}
-      />
+      {multiplePrompt && (
+        <ModalMultiple
+          isOpen={!!multiplePrompt}
+          localPath={multiplePrompt.localPath}
+          candidates={multiplePrompt.candidates}
+          onRespond={respondMultiple}
+        />
+      )}
 
       {/* MODAL: Conflict Resolution Choice Panel */}
-      <ModalConflict
-        isOpen={!!conflictPrompt}
-        localPath={conflictPrompt?.localPath || ''}
-        document={conflictPrompt!.document}
-        onRespond={respondConflict}
-      />
+      {conflictPrompt && (
+        <ModalConflict
+          isOpen={!!conflictPrompt}
+          localPath={conflictPrompt.localPath}
+          document={conflictPrompt.document}
+          onRespond={respondConflict}
+        />
+      )}
 
       {/* Onboarding / Setup Google Drive Root Modal */}
       <ModalSetup

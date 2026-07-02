@@ -17,6 +17,7 @@ export class DocumentOpenContext {
   public readonly taskRepo?: OfflineTaskRepository
   public readonly resolvedLocalPath: string
   public readonly isOnline: boolean
+  public readonly resolveConflict: (localPath: string, doc: Document) => Promise<OpenWorkflowResult>
 
   private _existingDoc: Document | null | undefined = undefined
   private _driveCandidates: Document[] | undefined = undefined
@@ -27,6 +28,7 @@ export class DocumentOpenContext {
     interactor: UserInteractor,
     resolvedLocalPath: string,
     isOnline: boolean,
+    resolveConflict: (localPath: string, doc: Document) => Promise<OpenWorkflowResult>,
     taskRepo?: OfflineTaskRepository
   ) {
     this.docRepo = docRepo
@@ -34,6 +36,7 @@ export class DocumentOpenContext {
     this.interactor = interactor
     this.resolvedLocalPath = resolvedLocalPath
     this.isOnline = isOnline
+    this.resolveConflict = resolveConflict
     this.taskRepo = taskRepo
   }
 

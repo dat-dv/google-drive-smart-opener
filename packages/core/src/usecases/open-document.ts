@@ -5,6 +5,14 @@ import { Document, calculateFileMd5 } from '@shared'
 import { DocumentRepository, OfflineTaskRepository } from '../ports/repositories'
 import { CloudProvider } from '../ports/cloud-provider'
 import { UserInteractor } from '../ports/user-interactor'
+import {
+  DocumentSyncStrategy,
+  DriveDeletedStrategy,
+  ConflictStrategy,
+  LocalChangedStrategy,
+  DriveChangedStrategy,
+  DocumentStateClassifier
+} from './sync-strategies'
 
 /**
  * Result states for the Open Document workflow.
@@ -59,6 +67,13 @@ export class OpenDocumentUseCase {
   private readonly taskRepo?: OfflineTaskRepository
   private isOnline = true
 
+  private readonly syncStrategies: DocumentSyncStrategy[] = [
+    new DriveDeletedStrategy(),
+    new ConflictStrategy(),
+    new LocalChangedStrategy(),
+    new DriveChangedStrategy()
+  ]
+
   constructor(
     docRepo: DocumentRepository,
     cloudProvider: CloudProvider,
@@ -98,33 +113,45 @@ export class OpenDocumentUseCase {
       // Database Hit: Open the canonical Drive version
       const driveAbsPath = this.cloudProvider.resolveLocalPath(existingDoc.drivePath)
 
-      if (!fs.existsSync(driveAbsPath)) {
-        // Edge Case: Drive version was deleted outside the app context
-        existingDoc.status = 'DRIVE_DELETED'
-        await this.docRepo.update(existingDoc)
-        return { type: 'OPENED', document: existingDoc }
+      let currentLocalHash = ''
+      let currentDriveHash = ''
+      try {
+        currentLocalHash = await calculateFileMd5(resolvedLocalPath)
+      } catch {
+        // Safe fallback in case file is read-locked or missing
+      }
+      try {
+        currentDriveHash = await calculateFileMd5(driveAbsPath)
+      } catch {
+        // Safe fallback in case file is read-locked or missing
       }
 
-      // R9: Conflict Detection (either flagged by watcher, or cold-check both changed)
-      let isConflict = existingDoc.status === 'CONFLICT'
-      if (!isConflict && existingDoc.status === 'LINKED') {
-        const currentLocalHash = await calculateFileMd5(resolvedLocalPath)
-        const currentDriveHash = await calculateFileMd5(driveAbsPath)
+      const stateCase = DocumentStateClassifier.classify(
+        existingDoc,
+        driveAbsPath,
+        currentLocalHash,
+        currentDriveHash
+      )
 
-        if (
-          existingDoc.localHash &&
-          existingDoc.driveHash &&
-          currentLocalHash !== existingDoc.localHash &&
-          currentDriveHash !== existingDoc.driveHash
-        ) {
-          existingDoc.status = 'CONFLICT'
-          await this.docRepo.update(existingDoc)
-          isConflict = true
+      const syncContext = {
+        docRepo: this.docRepo,
+        cloudProvider: this.cloudProvider,
+        resolvedLocalPath,
+        driveAbsPath,
+        existingDoc,
+        currentLocalHash,
+        currentDriveHash,
+        stateCase,
+        resolveConflict: this.resolveConflict.bind(this)
+      }
+
+      for (const strategy of this.syncStrategies) {
+        if (await strategy.canHandle(syncContext)) {
+          const result = await strategy.execute(syncContext)
+          if (result) {
+            return result
+          }
         }
-      }
-
-      if (isConflict) {
-        return this.resolveConflict(resolvedLocalPath, existingDoc)
       }
 
       // Normal Hit — open via Google Drive desktop app

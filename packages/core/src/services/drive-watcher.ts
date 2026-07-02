@@ -2,7 +2,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as chokidar from 'chokidar'
 import { Document, calculateFileMd5 } from '@shared'
-import { DocumentRepository } from '../ports/repositories'
+import { DocumentRepository, FolderMappingRepository } from '../ports/repositories'
 import { CloudProvider } from '../ports/cloud-provider'
 import * as crypto from 'crypto'
 
@@ -14,11 +14,17 @@ import * as crypto from 'crypto'
 export class DriveWatcher {
   private readonly docRepo: DocumentRepository
   private readonly cloudProvider: CloudProvider
+  private readonly mappingRepo?: FolderMappingRepository
   private rootWatcher: chokidar.FSWatcher | null = null
 
-  constructor(docRepo: DocumentRepository, cloudProvider: CloudProvider) {
+  constructor(
+    docRepo: DocumentRepository,
+    cloudProvider: CloudProvider,
+    mappingRepo?: FolderMappingRepository
+  ) {
     this.docRepo = docRepo
     this.cloudProvider = cloudProvider
+    this.mappingRepo = mappingRepo
   }
 
   /**
@@ -111,6 +117,21 @@ export class DriveWatcher {
         return
       }
 
+      let resolvedMappingId: string | null = mappingId
+      if (!resolvedMappingId && this.mappingRepo) {
+        const mappings = await this.mappingRepo.list()
+        for (const m of mappings) {
+          if (
+            m.status === 'ACTIVE' &&
+            (relativeDrivePath.startsWith(m.driveFolderPath + '/') ||
+              relativeDrivePath === m.driveFolderPath)
+          ) {
+            resolvedMappingId = m.id
+            break
+          }
+        }
+      }
+
       // Fresh new file: Create a new Document record
       const newDoc: Document = {
         id: crypto.randomUUID(),
@@ -129,7 +150,7 @@ export class DriveWatcher {
           mimeType: this.guessMimeType(filename),
           provider: 'google-drive'
         },
-        folderMappingId: mappingId
+        folderMappingId: resolvedMappingId
       }
 
       await this.docRepo.create(newDoc)

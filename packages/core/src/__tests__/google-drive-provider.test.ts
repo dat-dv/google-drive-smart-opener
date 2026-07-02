@@ -7,8 +7,8 @@ import { exec } from 'child_process'
 
 // Mock exec to prevent real macOS file open triggers during testing
 vi.mock('child_process', () => ({
-  exec: vi.fn((_cmd, cb: (err: Error | null) => void) => {
-    cb(null)
+  exec: vi.fn((_cmd, cb: (err: Error | null, stdout: string, stderr: string) => void) => {
+    cb(null, '', '')
   })
 }))
 

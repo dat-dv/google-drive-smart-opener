@@ -7,13 +7,13 @@ import { SQLiteDocumentRepository } from '@database'
 import { GoogleDriveProvider } from '../services/google-drive-provider'
 import { OpenDocumentUseCase } from '../usecases/open-document'
 import { UserInteractor } from '../ports/user-interactor'
-import { Document } from '@shared'
+import { Document, calculateFileMd5 } from '@shared'
 import * as crypto from 'crypto'
 
 // Mock exec to prevent real macOS file open triggers during testing
 vi.mock('child_process', () => ({
-  exec: vi.fn((_cmd, cb: (err: Error | null) => void) => {
-    cb(null)
+  exec: vi.fn((_cmd, cb: (err: Error | null, stdout: string, stderr: string) => void) => {
+    cb(null, '', '')
   })
 }))
 
@@ -130,6 +130,76 @@ describe('OpenDocumentUseCase Integration Tests with Prompting', () => {
 
       const updated = await docRepo.findById(doc.id)
       expect(updated?.status).toBe('DRIVE_DELETED')
+    })
+
+    it('should sync local content to Drive if local file changed but Drive did not', async () => {
+      const localPath = path.join(localWorkspaceDir, 'report.docx')
+      const drivePath = 'My Drive/canonical_report.docx'
+      const driveAbsPath = path.join(driveWorkspaceDir, drivePath)
+
+      fs.writeFileSync(localPath, 'Initial Content')
+      fs.mkdirSync(path.dirname(driveAbsPath), { recursive: true })
+      fs.writeFileSync(driveAbsPath, 'Initial Content')
+
+      const initialHash = await calculateFileMd5(localPath)
+      const doc = createDummyDocument({
+        drivePath,
+        localOriginalPath: localPath,
+        localHash: initialHash,
+        driveHash: initialHash,
+        status: 'LINKED'
+      })
+      await docRepo.create(doc)
+
+      // Replace local file with new content
+      fs.writeFileSync(localPath, 'New Local Content')
+
+      const result = await useCase.execute(localPath)
+      expect(result.type).toBe('OPENED')
+
+      // Drive file should now contain the new local content
+      expect(fs.readFileSync(driveAbsPath, 'utf8')).toBe('New Local Content')
+
+      // DB hashes should be updated
+      const updated = await docRepo.findById(doc.id)
+      expect(updated?.localHash).not.toBe(initialHash)
+      expect(updated?.driveHash).not.toBe(initialHash)
+      expect(updated?.localHash).toBe(updated?.driveHash)
+    })
+
+    it('should sync Drive content to Local if Drive file changed but Local did not', async () => {
+      const localPath = path.join(localWorkspaceDir, 'report.docx')
+      const drivePath = 'My Drive/canonical_report.docx'
+      const driveAbsPath = path.join(driveWorkspaceDir, drivePath)
+
+      fs.writeFileSync(localPath, 'Initial Content')
+      fs.mkdirSync(path.dirname(driveAbsPath), { recursive: true })
+      fs.writeFileSync(driveAbsPath, 'Initial Content')
+
+      const initialHash = await calculateFileMd5(localPath)
+      const doc = createDummyDocument({
+        drivePath,
+        localOriginalPath: localPath,
+        localHash: initialHash,
+        driveHash: initialHash,
+        status: 'LINKED'
+      })
+      await docRepo.create(doc)
+
+      // Replace Drive file with new content
+      fs.writeFileSync(driveAbsPath, 'New Drive Content')
+
+      const result = await useCase.execute(localPath)
+      expect(result.type).toBe('OPENED')
+
+      // Local file should now contain the new Drive content
+      expect(fs.readFileSync(localPath, 'utf8')).toBe('New Drive Content')
+
+      // DB hashes should be updated
+      const updated = await docRepo.findById(doc.id)
+      expect(updated?.localHash).not.toBe(initialHash)
+      expect(updated?.driveHash).not.toBe(initialHash)
+      expect(updated?.localHash).toBe(updated?.driveHash)
     })
   })
 

@@ -219,7 +219,10 @@ function App(): React.JSX.Element {
   }
 
   // Resolve Multiple Candidates Prompt
-  const respondMultiple = (action: 'OPEN_DRIVE' | 'IMPORT_NEW' | 'CANCEL', selectedId?: string): void => {
+  const respondMultiple = (
+    action: 'OPEN_DRIVE' | 'IMPORT_NEW' | 'CANCEL',
+    selectedId?: string
+  ): void => {
     if (!multiplePrompt) return
     if (action === 'OPEN_DRIVE') {
       const selected = multiplePrompt.candidates.find((c) => c.id === selectedId)
@@ -273,17 +276,31 @@ function App(): React.JSX.Element {
               <div className="absolute inset-0 rounded-full border-4 border-indigo-500/20" />
               <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-indigo-400 animate-spin" />
               <div className="absolute inset-2 rounded-full bg-indigo-500/10 flex items-center justify-center">
-                <svg className="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+                <svg
+                  className="w-5 h-5 text-indigo-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"
+                  />
                 </svg>
               </div>
             </div>
             <div className="text-center">
               <p className="text-sm font-semibold text-white">Uploading to Google Drive...</p>
               {processingFile && (
-                <p className="text-xs text-slate-400 mt-1 font-mono truncate max-w-xs">{processingFile}</p>
+                <p className="text-xs text-slate-400 mt-1 font-mono truncate max-w-xs">
+                  {processingFile}
+                </p>
               )}
-              <p className="text-[11px] text-slate-500 mt-2">Waiting for Drive sync before opening online</p>
+              <p className="text-[11px] text-slate-500 mt-2">
+                Waiting for Drive sync before opening online
+              </p>
             </div>
           </div>
         </div>
@@ -502,7 +519,8 @@ function App(): React.JSX.Element {
                         </div>
                         <div className="flex items-start justify-between gap-3 group/path">
                           <div className="min-w-0 flex-1">
-                            <strong className="text-slate-500">Drive mirror:</strong> {doc.drivePath}
+                            <strong className="text-slate-500">Drive mirror:</strong>{' '}
+                            {doc.drivePath}
                           </div>
                         </div>
                       </div>

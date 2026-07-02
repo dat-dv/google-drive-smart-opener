@@ -192,7 +192,6 @@ export class GoogleDriveProvider implements CloudProvider {
     await execCmd(`open "${absolutePath}"`)
   }
 
-
   /**
    * Moves a file within the Google Drive filesystem.
    */

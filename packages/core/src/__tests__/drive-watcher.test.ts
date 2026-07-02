@@ -23,7 +23,7 @@ describe('DriveWatcher Integration Tests', () => {
   let provider: GoogleDriveProvider
   let watcher: DriveWatcher
 
-  beforeEach(() => {
+  beforeEach(async () => {
     // Setup clean, unique directories
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'drive-watcher-test-'))
     // Resolve symlinks (critical on macOS since /var is symlinked to /private/var)
@@ -44,7 +44,8 @@ describe('DriveWatcher Integration Tests', () => {
     provider = new GoogleDriveProvider(driveRoot)
 
     // Watcher Initialization
-    watcher = new DriveWatcher(docRepo, provider)
+    watcher = new DriveWatcher(docRepo, provider, mappingRepo)
+    await watcher.start()
   })
 
   afterEach(async () => {
@@ -66,6 +67,7 @@ describe('DriveWatcher Integration Tests', () => {
       updatedAt: new Date().toISOString(),
       status: 'ACTIVE'
     }
+    fs.mkdirSync(path.join(driveRoot, driveSubfolder), { recursive: true })
     await mappingRepo.create(mapping)
     return mapping
   }

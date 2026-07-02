@@ -127,9 +127,7 @@ export function ModalConflict({
               onClick={(): void => onRespond('KEEP_BOTH_RENAME_LOCAL')}
             >
               <div className="flex flex-col gap-0.5">
-                <span className="text-sm font-bold text-slate-200">
-                  Keep Both (Rename Local)
-                </span>
+                <span className="text-sm font-bold text-slate-200">Keep Both (Rename Local)</span>
                 <span className="text-xs text-slate-500">
                   Rename local to &quot;file (Local Conflict)&quot; and upload as new.
                 </span>
@@ -159,9 +157,7 @@ export function ModalConflict({
               onClick={(): void => onRespond('OPEN_DRIVE_ANYWAY')}
             >
               <div className="flex flex-col gap-0.5">
-                <span className="text-sm font-bold text-slate-200">
-                  Open Drive Version Anyway
-                </span>
+                <span className="text-sm font-bold text-slate-200">Open Drive Version Anyway</span>
                 <span className="text-xs text-slate-500">
                   Open the Drive mirror file as-is without resolving the conflict status.
                 </span>
@@ -175,9 +171,7 @@ export function ModalConflict({
               onClick={(): void => onRespond('OPEN_LOCAL_ANYWAY')}
             >
               <div className="flex flex-col gap-0.5">
-                <span className="text-sm font-bold text-slate-200">
-                  Open Local Version Anyway
-                </span>
+                <span className="text-sm font-bold text-slate-200">Open Local Version Anyway</span>
                 <span className="text-xs text-slate-500">
                   Open your local original file directly without synchronization changes.
                 </span>

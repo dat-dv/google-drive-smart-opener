@@ -82,9 +82,8 @@ export function ModalSetup({
         <form onSubmit={handleSaveSetupPath} className="p-6 flex flex-col gap-5">
           <div className="text-xs text-slate-400 leading-relaxed bg-white/5 p-4 rounded-xl border border-white/5">
             <p className="mb-2 font-semibold text-slate-300">Why is this needed?</p>
-            Google Drive for Desktop syncs your cloud files locally. To read the file metadata
-            (Item IDs) and map folders, the app needs to know your local Google Drive root
-            folder path.
+            Google Drive for Desktop syncs your cloud files locally. To read the file metadata (Item
+            IDs) and map folders, the app needs to know your local Google Drive root folder path.
           </div>
 
           <div className="flex flex-col gap-2">

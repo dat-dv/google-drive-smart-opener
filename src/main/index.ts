@@ -207,7 +207,6 @@ function handleOpenFile(filePath: string): void {
     })
 }
 
-
 // Early registration of macOS open-file event (R7)
 // Always queue regardless of app.isReady() — actual processing happens only after
 // renderer-ready fires (guarantees React listeners are mounted before prompts appear).
@@ -288,7 +287,7 @@ async function initializeGoogleDriveServices(driveRoot: string): Promise<void> {
   openDocumentUseCase = new OpenDocumentUseCase(docRepo, driveProvider, interactor, taskRepo)
   offlineSyncService = new OfflineSyncService(taskRepo, docRepo, driveProvider)
 
-  watcher = new DriveWatcher(docRepo, driveProvider)
+  watcher = new DriveWatcher(docRepo, driveProvider, mappingRepo)
   await watcher.start()
 }
 
@@ -442,7 +441,10 @@ app.whenReady().then(async () => {
       properties: ['openFile'],
       title: 'Select a file to open via Google Drive Smart Opener',
       filters: [
-        { name: 'Documents', extensions: ['docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'pdf', 'txt', 'md'] },
+        {
+          name: 'Documents',
+          extensions: ['docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'pdf', 'txt', 'md']
+        },
         { name: 'All Files', extensions: ['*'] }
       ]
     })

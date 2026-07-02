@@ -92,9 +92,7 @@ export function ModalMultiple({
                       </svg>
                     </button>
                   )}
-                  <span className="text-xs font-medium font-mono truncate">
-                    {c.drivePath}
-                  </span>
+                  <span className="text-xs font-medium font-mono truncate">{c.drivePath}</span>
                 </div>
                 <span className="text-[10px] px-2 py-0.5 rounded bg-slate-950/40 text-slate-500 uppercase tracking-wider font-semibold shrink-0 ml-2">
                   {c.status}

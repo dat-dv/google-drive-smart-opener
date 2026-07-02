@@ -11,7 +11,10 @@ interface Props {
  * Reusable inline button that opens the OS file manager at the given path.
  * Renders nothing if filePath is null/empty.
  */
-export function ShowInFolderButton({ filePath, title = 'Open containing folder' }: Props): React.JSX.Element | null {
+export function ShowInFolderButton({
+  filePath,
+  title = 'Open containing folder'
+}: Props): React.JSX.Element | null {
   if (!filePath) return null
   return (
     <button
@@ -22,8 +25,18 @@ export function ShowInFolderButton({ filePath, title = 'Open containing folder' 
       className="p-1 rounded bg-white/5 hover:bg-white/10 text-slate-400 hover:text-amber-400 transition-all duration-150 shrink-0"
       title={title}
     >
-      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+      <svg
+        className="w-3.5 h-3.5"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth="2"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+        />
       </svg>
     </button>
   )
@@ -183,13 +196,55 @@ export interface ModalConflictProps {
 
 /** Shown when both local and Drive copies have diverged. */
 export function ModalConflict({ prompt, onRespond }: ModalConflictProps): React.JSX.Element {
-  const options: { choice: ConflictChoice; label: string; desc: string; badge: string; color: string }[] = [
-    { choice: 'KEEP_DRIVE', label: 'Keep Drive Copy', desc: 'Overwrite your local file with the Google Drive version.', badge: '➔ Local', color: 'hover:bg-emerald-500/10 hover:border-emerald-500/30' },
-    { choice: 'KEEP_LOCAL', label: 'Keep Local Copy', desc: 'Push your local changes to replace the Drive version.', badge: '➔ Drive', color: 'hover:bg-indigo-500/10 hover:border-indigo-500/30' },
-    { choice: 'KEEP_BOTH_RENAME_LOCAL', label: 'Keep Both (Rename Local)', desc: 'Rename local to "file (Local Conflict)" and upload as new.', badge: '📁', color: 'hover:bg-indigo-500/5 hover:border-indigo-500/20' },
-    { choice: 'KEEP_BOTH_RENAME_DRIVE', label: 'Keep Both (Rename Drive Copy)', desc: 'Rename the old Drive copy and upload your local copy to the original path.', badge: '☁️', color: 'hover:bg-indigo-500/5 hover:border-indigo-500/20' },
-    { choice: 'OPEN_DRIVE_ANYWAY', label: 'Open Drive Version Anyway', desc: 'Open the Drive mirror file as-is without resolving the conflict status.', badge: '➔ View', color: 'hover:bg-white/5' },
-    { choice: 'OPEN_LOCAL_ANYWAY', label: 'Open Local Version Anyway', desc: 'Open your local original file directly without synchronization changes.', badge: '➔ Local View', color: 'hover:bg-white/5' },
+  const options: {
+    choice: ConflictChoice
+    label: string
+    desc: string
+    badge: string
+    color: string
+  }[] = [
+    {
+      choice: 'KEEP_DRIVE',
+      label: 'Keep Drive Copy',
+      desc: 'Overwrite your local file with the Google Drive version.',
+      badge: '➔ Local',
+      color: 'hover:bg-emerald-500/10 hover:border-emerald-500/30'
+    },
+    {
+      choice: 'KEEP_LOCAL',
+      label: 'Keep Local Copy',
+      desc: 'Push your local changes to replace the Drive version.',
+      badge: '➔ Drive',
+      color: 'hover:bg-indigo-500/10 hover:border-indigo-500/30'
+    },
+    {
+      choice: 'KEEP_BOTH_RENAME_LOCAL',
+      label: 'Keep Both (Rename Local)',
+      desc: 'Rename local to "file (Local Conflict)" and upload as new.',
+      badge: '📁',
+      color: 'hover:bg-indigo-500/5 hover:border-indigo-500/20'
+    },
+    {
+      choice: 'KEEP_BOTH_RENAME_DRIVE',
+      label: 'Keep Both (Rename Drive Copy)',
+      desc: 'Rename the old Drive copy and upload your local copy to the original path.',
+      badge: '☁️',
+      color: 'hover:bg-indigo-500/5 hover:border-indigo-500/20'
+    },
+    {
+      choice: 'OPEN_DRIVE_ANYWAY',
+      label: 'Open Drive Version Anyway',
+      desc: 'Open the Drive mirror file as-is without resolving the conflict status.',
+      badge: '➔ View',
+      color: 'hover:bg-white/5'
+    },
+    {
+      choice: 'OPEN_LOCAL_ANYWAY',
+      label: 'Open Local Version Anyway',
+      desc: 'Open your local original file directly without synchronization changes.',
+      badge: '➔ Local View',
+      color: 'hover:bg-white/5'
+    }
   ]
 
   return (
@@ -214,7 +269,8 @@ export function ModalConflict({ prompt, onRespond }: ModalConflictProps): React.
             </div>
           </div>
           <p className="text-sm text-slate-400 leading-relaxed">
-            Both local and Drive copies have been modified independently. Select a resolution strategy:
+            Both local and Drive copies have been modified independently. Select a resolution
+            strategy:
           </p>
           <div className="flex flex-col gap-2.5 max-h-80 overflow-y-auto pr-1">
             {options.map(({ choice, label, desc, badge, color }) => (

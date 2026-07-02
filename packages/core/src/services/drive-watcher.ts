@@ -1,10 +1,10 @@
 import * as fs from 'fs'
 import * as path from 'path'
+import * as crypto from 'crypto'
 import * as chokidar from 'chokidar'
-import { Document, calculateFileMd5 } from '@shared'
+import { Document, calculateFileMd5, guessMimeType } from '@shared'
 import { DocumentRepository, FolderMappingRepository } from '../ports/repositories'
 import { CloudProvider } from '../ports/cloud-provider'
-import * as crypto from 'crypto'
 
 /**
  * Service to watch Drive folders recursively using chokidar.
@@ -147,7 +147,7 @@ export class DriveWatcher {
         status: 'LINKED',
         metadata: {
           size: stats.size,
-          mimeType: this.guessMimeType(filename),
+          mimeType: guessMimeType(filename),
           provider: 'google-drive'
         },
         folderMappingId: resolvedMappingId
@@ -217,35 +217,6 @@ export class DriveWatcher {
       }
     } catch (error) {
       console.error(`Watcher error processing delete event for ${absoluteFilePath}:`, error)
-    }
-  }
-
-  private guessMimeType(filename: string): string {
-    const ext = path.extname(filename).toLowerCase()
-    switch (ext) {
-      case '.txt':
-        return 'text/plain'
-      case '.pdf':
-        return 'application/pdf'
-      case '.docx':
-        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-      case '.doc':
-        return 'application/msword'
-      case '.xlsx':
-        return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-      case '.xls':
-        return 'application/vnd.ms-excel'
-      case '.pptx':
-        return 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
-      case '.ppt':
-        return 'application/vnd.ms-powerpoint'
-      case '.png':
-        return 'image/png'
-      case '.jpg':
-      case '.jpeg':
-        return 'image/jpeg'
-      default:
-        return 'application/octet-stream'
     }
   }
 }

@@ -1,7 +1,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import * as crypto from 'crypto'
-import { Document, calculateFileMd5 } from '@shared'
+import { Document, calculateFileMd5, guessMimeType } from '@shared'
 import { DocumentRepository, OfflineTaskRepository } from '../ports/repositories'
 import { CloudProvider } from '../ports/cloud-provider'
 import { UserInteractor } from '../ports/user-interactor'
@@ -27,39 +27,6 @@ export type OpenWorkflowResult =
  * Intercepts local path requests, resolves existing matches, prompts user
  * when database misses require candidate linking, and manages conflict resolution.
  */
-function guessMimeType(filename: string): string {
-  const ext = path.extname(filename).toLowerCase()
-  switch (ext) {
-    case '.txt':
-      return 'text/plain'
-    case '.html':
-      return 'text/html'
-    case '.pdf':
-      return 'application/pdf'
-    case '.docx':
-      return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-    case '.doc':
-      return 'application/msword'
-    case '.xlsx':
-      return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    case '.xls':
-      return 'application/vnd.ms-excel'
-    case '.pptx':
-      return 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
-    case '.ppt':
-      return 'application/vnd.ms-powerpoint'
-    case '.png':
-      return 'image/png'
-    case '.jpg':
-    case '.jpeg':
-      return 'image/jpeg'
-    case '.json':
-      return 'application/json'
-    default:
-      return 'application/octet-stream'
-  }
-}
-
 export class OpenDocumentUseCase {
   private readonly docRepo: DocumentRepository
   private readonly cloudProvider: CloudProvider

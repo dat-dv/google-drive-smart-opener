@@ -12,15 +12,8 @@ import {
   SQLiteFolderMappingRepository,
   SQLiteOfflineTaskRepository
 } from '@database'
-import {
-  GoogleDriveProvider,
-  OpenDocumentUseCase,
-  DriveWatcher,
-  ConflictResolutionChoice,
-  UserInteractor,
-  OfflineSyncService
-} from '@core'
-import { Document } from '@shared'
+import { GoogleDriveProvider, OpenDocumentUseCase, DriveWatcher, OfflineSyncService } from '@core'
+import { ElectronUserInteractor } from './electron-user-interactor'
 
 let mainWindow: BrowserWindow | null = null
 let dbManager: DatabaseManager
@@ -48,55 +41,6 @@ function logToFile(msg: string): void {
 }
 
 logToFile('--- Application Main Process Started ---')
-
-class ElectronUserInteractor implements UserInteractor {
-  private win: BrowserWindow | null = null
-
-  setWindow(win: BrowserWindow): void {
-    this.win = win
-  }
-
-  async promptSingleCandidate(
-    localPath: string,
-    candidate: Document
-  ): Promise<'OPEN_DRIVE' | 'IMPORT_NEW' | 'CANCEL'> {
-    if (!this.win) return 'CANCEL'
-    return new Promise((resolve) => {
-      const id = crypto.randomUUID()
-      this.win!.webContents.send('prompt-single-candidate', { id, localPath, candidate })
-      ipcMain.once(`prompt-single-candidate-response-${id}`, (_, response) => {
-        resolve(response)
-      })
-    })
-  }
-
-  async promptMultipleCandidates(
-    localPath: string,
-    candidates: Document[]
-  ): Promise<
-    { action: 'OPEN_DRIVE'; selected: Document } | { action: 'IMPORT_NEW' } | { action: 'CANCEL' }
-  > {
-    if (!this.win) return { action: 'CANCEL' }
-    return new Promise((resolve) => {
-      const id = crypto.randomUUID()
-      this.win!.webContents.send('prompt-multiple-candidates', { id, localPath, candidates })
-      ipcMain.once(`prompt-multiple-candidates-response-${id}`, (_, response) => {
-        resolve(response)
-      })
-    })
-  }
-
-  async promptConflict(localPath: string, document: Document): Promise<ConflictResolutionChoice> {
-    if (!this.win) return 'CANCEL'
-    return new Promise((resolve) => {
-      const id = crypto.randomUUID()
-      this.win!.webContents.send('prompt-conflict', { id, localPath, document })
-      ipcMain.once(`prompt-conflict-response-${id}`, (_, response) => {
-        resolve(response)
-      })
-    })
-  }
-}
 
 function getGoogleDriveRoot(): string {
   const home = os.homedir()

@@ -16,7 +16,8 @@ vi.mock('fs', () => {
 
 vi.mock('@shared', () => {
   return {
-    calculateFileMd5: vi.fn(() => Promise.resolve('mock-local-hash'))
+    calculateFileMd5: vi.fn(() => Promise.resolve('mock-local-hash')),
+    guessMimeType: vi.fn(() => 'application/octet-stream')
   }
 })
 

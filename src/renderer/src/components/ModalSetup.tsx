@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 
 export interface ModalSetupProps {
   isOpen: boolean
@@ -16,15 +16,9 @@ export function ModalSetup({
   onSave,
   onCancel
 }: ModalSetupProps): React.JSX.Element | null {
-  if (!isOpen) return null
-
   const [setupPathInput, setSetupPathInput] = useState(driveRootInfo?.path || '')
 
-  useEffect(() => {
-    if (driveRootInfo?.path) {
-      setSetupPathInput(driveRootInfo.path)
-    }
-  }, [driveRootInfo])
+  if (!isOpen) return null
 
   const handleBrowseSetupPath = async (): Promise<void> => {
     try {

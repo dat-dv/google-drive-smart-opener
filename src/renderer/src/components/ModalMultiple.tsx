@@ -14,9 +14,9 @@ export function ModalMultiple({
   candidates,
   onRespond
 }: ModalMultipleProps): React.JSX.Element | null {
-  if (!isOpen) return null
-
   const [selectedId, setSelectedId] = useState<string | null>(null)
+
+  if (!isOpen) return null
 
   const handleShowInFolder = (path: string): void => {
     window.electron.ipcRenderer.invoke('dialog:show-in-folder', path)

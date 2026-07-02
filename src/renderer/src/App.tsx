@@ -543,7 +543,7 @@ function App(): React.JSX.Element {
       <ModalSingle
         isOpen={!!singlePrompt}
         localPath={singlePrompt?.localPath || ''}
-        candidate={singlePrompt?.candidate!}
+        candidate={singlePrompt!.candidate}
         onRespond={respondSingle}
       />
 
@@ -559,12 +559,13 @@ function App(): React.JSX.Element {
       <ModalConflict
         isOpen={!!conflictPrompt}
         localPath={conflictPrompt?.localPath || ''}
-        document={conflictPrompt?.document!}
+        document={conflictPrompt!.document}
         onRespond={respondConflict}
       />
 
       {/* Onboarding / Setup Google Drive Root Modal */}
       <ModalSetup
+        key={driveRootInfo?.path || 'setup'}
         isOpen={showSetupModal}
         driveRootInfo={driveRootInfo}
         onSave={handleSaveSetupPath}

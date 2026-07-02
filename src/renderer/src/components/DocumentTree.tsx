@@ -14,7 +14,7 @@ interface TreeNode {
  * Builds a tree structure from a flat list of Documents keyed by drivePath.
  * Root is always 'My Drive'.
  */
-export function buildDocTree(docs: Document[]): TreeNode {
+function buildDocTree(docs: Document[]): TreeNode {
   const root: TreeNode = {
     name: 'Google Drive',
     path: 'My Drive',

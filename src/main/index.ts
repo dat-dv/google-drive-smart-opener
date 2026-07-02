@@ -102,19 +102,12 @@ function validateGoogleDriveRoot(folderPath: string): { valid: boolean; warning?
 }
 
 function handleOpenFile(filePath: string): void {
-  const now = Date.now()
   if (processingFiles.has(filePath)) {
     logToFile(`[Smart Opener] Blocked duplicate handleOpenFile (already processing): ${filePath}`)
     return
   }
-  const lastOpened = recentlyOpenedFiles.get(filePath)
-  if (lastOpened && now - lastOpened < DEBOUNCE_MS) {
-    logToFile(`[Smart Opener] Blocked duplicate handleOpenFile (debounced): ${filePath}`)
-    return
-  }
 
   processingFiles.add(filePath)
-  recentlyOpenedFiles.set(filePath, now)
 
   logToFile(`handleOpenFile triggered for: ${filePath}`)
   if (!mainWindow || mainWindow.isDestroyed()) {

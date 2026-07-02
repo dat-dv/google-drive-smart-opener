@@ -67,7 +67,7 @@ linux:
   category: public.app-category.utilities
 appImage:
   artifactName: ${name}-${version}.${ext}
-npmRebuild: false
+npmRebuild: true
 electronDist: ./node_modules/electron/dist
 publish:
   provider: generic
